@@ -16,19 +16,11 @@ case "$ACTION" in
         nix develop "$SCRIPT_DIR" --command env PYTHONPATH=. pytest -v tests/
         ;;
     2)
-        echo "Executing Full Model Safety Audit CLI..."
-        nix develop "$SCRIPT_DIR" --command python3 -c "
-import glob, cv2
-from engine.auditor import CandidateModelEvaluator, run_full_model_audit
-from backend.certificate_gen import generate_deployment_certificate
-
-evaluator = CandidateModelEvaluator('assets/models/candidate_model_a.onnx', 'Candidate-Model-A (LCNet-Edge)')
-samples = {f.split('/')[-1].split('.')[0]: cv2.imread(f) for f in glob.glob('assets/test_samples/*.jpg')}
-
-audit = run_full_model_audit(evaluator, samples)
-pdf_path = generate_deployment_certificate(audit, 'outputs/TrustCheck_Certificate_CLI.pdf')
-print('Audit complete! Certificate generated at:', pdf_path)
-"
+        echo "Executing HLT-08 Pre-Deployment Audit Battery (CLI)..."
+        nix develop "$SCRIPT_DIR" --command python3 audit_runner.py \
+            --model benchmark:chexnet-densenet121 \
+            --metadata data/sample_metadata.csv \
+            --output-dir output/audit_run_01
         ;;
     3)
         echo "Starting FastAPI Audit Server (Port 8000)..."
@@ -55,13 +47,18 @@ audit = run_full_model_audit(evaluator, samples)
 generate_deployment_certificate(audit, 'outputs/TrustCheck_Certificate_Sample.pdf')
 print('Certificate generated at outputs/TrustCheck_Certificate_Sample.pdf')
 "
-        ;;
-    *)
-        echo "Usage: ./start.sh [1|2|3|4]"
-        echo "  1) Run pytest test suite"
-        echo "  2) Run audit CLI"
-        echo "  3) Launch full stack (FastAPI + Vite UI)"
-        echo "  4) Generate PDF Certificate"
-        exit 1
-        ;;
+;;
+5)
+echo "Launching Interactive Clinical AI Safety Dashboard (Streamlit)..."
+nix develop "$SCRIPT_DIR" --command streamlit run reporting/dashboard.py -- --telemetry-path output/audit_run_01/telemetry.json
+;;
+*)
+echo "Usage: ./start.sh [1|2|3|4|5]"
+echo "  1) Run pytest test suite"
+echo "  2) Run HLT-08 clinical audit battery (CLI)"
+echo "  3) Launch full stack (FastAPI + Vite UI)"
+echo "  4) Generate retinal demo PDF certificate"
+echo "  5) Launch Streamlit Auditor Dashboard"
+exit 1
+;;
 esac
