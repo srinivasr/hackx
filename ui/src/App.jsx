@@ -845,25 +845,46 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 4: MODEL ARENA */}
+        {/* TAB 5: MODEL ARENA */}
         {activeTab === 'arena' && (
           <div className="arena-container">
             <div className="card">
-              <div className="card-header">
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                   <h3 className="card-title-text">Model-to-Model Clinical Benchmarking Arena</h3>
                   <p className="card-desc">
                     Side-by-side deployment audit comparing Mobile Edge architectures vs Heavyweight Hospital Server models.
                   </p>
                 </div>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    const next = selectedModel === 'candidate_a_edge' ? 'candidate_b_teacher' : 'candidate_a_edge';
+                    setSelectedModel(next);
+                    loadLatestAudit(next);
+                  }}
+                >
+                  <RefreshCw size={13} />
+                  Inspect {selectedModel === 'candidate_a_edge' ? 'Candidate B (Server ViT)' : 'Candidate A (Mobile Edge)'} in Full Dashboard →
+                </button>
               </div>
 
               <table className="data-table arena-table">
                 <thead>
                   <tr>
                     <th>Evaluation Metric</th>
-                    <th>Candidate A (Mobile LCNet Edge)</th>
-                    <th>Candidate B (Server MaxViT-384)</th>
+                    <th>
+                      Candidate A (Mobile LCNet Edge)
+                      {selectedModel === 'candidate_a_edge' && (
+                        <span className="tag" style={{ marginLeft: '8px', verticalAlign: 'middle' }}>Active in Demo</span>
+                      )}
+                    </th>
+                    <th>
+                      Candidate B (Server MaxViT-384)
+                      {selectedModel === 'candidate_b_teacher' && (
+                        <span className="tag" style={{ marginLeft: '8px', verticalAlign: 'middle' }}>Active in Demo</span>
+                      )}
+                    </th>
                     <th>Clinical Safety Implication</th>
                   </tr>
                 </thead>
@@ -894,13 +915,25 @@ export default function App() {
                   </tr>
                   <tr>
                     <td><strong>Defocus Noise Resilience</strong></td>
-                    <td><span className="status-fail">28.0% Stability Retained</span></td>
+                    <td>
+                      <span className="status-fail">
+                        {auditData && selectedModel === 'candidate_a_edge' && auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability != null
+                          ? `${auditData.stress_tests.blur_ladder.slice(-1)[0].retained_stability}% Stability Retained`
+                          : '28.0% Stability Retained'}
+                      </span>
+                    </td>
                     <td><span className="status-pass">64.5% Stability Retained</span></td>
                     <td>ViT self-attention resists localized blur</td>
                   </tr>
                   <tr>
                     <td><strong>Expected Calibration Error (ECE)</strong></td>
-                    <td><span className="status-fail">18.4% (Overconfident)</span></td>
+                    <td>
+                      <span className="status-fail">
+                        {auditData && selectedModel === 'candidate_a_edge' && auditData?.calibration?.ece_percent != null
+                          ? `${auditData.calibration.ece_percent}% (Overconfident)`
+                          : '18.4% (Overconfident)'}
+                      </span>
+                    </td>
                     <td><span className="status-pass">4.2% (Well-calibrated)</span></td>
                     <td>Student network requires temperature scaling</td>
                   </tr>
