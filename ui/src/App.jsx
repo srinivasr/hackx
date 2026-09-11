@@ -226,7 +226,10 @@ export default function App() {
           onClick={() => setActiveTab('failures')}
         >
           <AlertTriangle size={15} />
-          Silent Failures ({auditData?.discrepancies?.length || 0})
+          <span>Silent Failures</span>
+          <span className={`tab-badge ${(auditData?.discrepancies?.length || 0) > 0 ? 'tab-badge-danger' : ''}`}>
+            {auditData?.discrepancies?.length || 0}
+          </span>
         </button>
         <button
           className={`tab-btn ${activeTab === 'arena' ? 'active' : ''}`}
