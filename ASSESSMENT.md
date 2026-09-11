@@ -120,8 +120,8 @@ Implementation path: Replace point predictions with prediction sets using a held
 ## 3. Reproducible Artifacts & Verification Chain
 
 All claims above are grounded in:
-- Executable source code (`/home/lev/pro/trust-check/engines/`)
-- Empirical test suite (`pytest` output: 10/10 PASS)
+- Executable source code (`engines/`)
+- Empirical test suite (`pytest` output: 19/19 PASS)
 - Real audit runs (`output/audit_run_*/telemetry.json`, `.pdf`)
 - Research literature ([1]-[11]) with verifiable DOIs/URLs
 
@@ -130,22 +130,21 @@ The `grounded-citations` skill was used to register all external sources at retr
 ### Verification Commands Executed
 ```bash
 # Full test suite
-nix develop . --command env PYTHONPATH=. pytest -v tests/
+./start.sh 1
 
 # End-to-end audit battery (CLI)
 ./start.sh 2
 
-# Dashboard launch (manual verification)
-nix develop . --command npm --prefix ui run dev -- --host 0.0.0.0 --port 5173 &
-nix develop . --command python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 &
+# Full Stack Dashboard launch
+./start.sh 3
 ```
 
 ### Generated Outputs
-- MEDIA:/home/lev/pro/trust-check/output/audit_run_01/telemetry.json
-- MEDIA:/home/lev/pro/trust-check/output/audit_run_01/audit_certificate.pdf  
-- MEDIA:/home/lev/pro/trust-check/output/audit_run_02/telemetry.json
-- MEDIA:/home/lev/pro/trust-check/output/audit_run_02/audit_certificate.pdf
-- MEDIA:/home/lev/pro/trust-check/IMPLEMENTATION.md (this document)
+- output/audit_run_01/telemetry.json
+- output/audit_run_01/audit_certificate.pdf  
+- output/audit_run_retinal_dr/telemetry.json
+- output/audit_run_retinal_dr/audit_certificate.pdf
+- IMPLEMENTATION.md
 
 ---
 
@@ -162,7 +161,7 @@ The TrustCheck implementation satisfies the HLT-08 specification by:
 
 **Next Steps**: Implement test-time adaptation [7] and conformal prediction [11] wrappers to improve robustness to shift while maintaining safety guarantees. Validate improvements on multi-site chest radiograph datasets (MIMIC-CXR, CheXpert, NIH ChestX-ray14).
 
-All code, data, and documentation are available in the `/home/lev/pro/trust-check` repository under the MIT license.
+All code, data, and documentation are available in this repository under the MIT license.
 
 ---
 **Sources:**  

@@ -1,9 +1,12 @@
 import os
 import glob
+import time
 import base64
 import json
 from typing import Dict, Any, Optional
 import cv2
+import yaml
+import pandas as pd
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -325,4 +328,217 @@ def get_cohort_pdf(audit_id: Optional[str] = None):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to compile safety certificate: {e}")
+
+
+def load_config(config_path: str = "config/audit_thresholds.yaml") -> Dict[str, Any]:
+    if os.path.exists(config_path):
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f)
+    return {}
+
+
+@app.post("/api/models/register")
+def register_model(
+    model_id: str = Form(...),
+    name: str = Form(...),
+    path: str = Form(...),
+    architecture: str = Form("Custom Diagnostic Architecture"),
+    target_deployment: str = Form("Clinical Tier-2 Deployment"),
+):
+    """Registers a new model into the evaluation harness."""
+    MODEL_REGISTRY[model_id] = {
+        "id": model_id,
+        "name": name,
+        "path": path,
+        "architecture": architecture,
+        "target_deployment": target_deployment,
+    }
+    return {"status": "registered", "model": MODEL_REGISTRY[model_id]}
+
+
+@app.post("/api/models/upload")
+async def upload_model(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    architecture: str = Form("ONNX Clinical Classifier"),
+    target_deployment: str = Form("Tier-1 Hospital Sandbox"),
+):
+    """Uploads an ONNX model file and registers it into TrustCheck evaluation harness."""
+    os.makedirs("assets/models/uploads", exist_ok=True)
+    clean_filename = os.path.basename(file.filename or "model.onnx")
+    model_id = f"model_{int(time.time())}_{clean_filename.split('.')[0]}"
+    target_path = os.path.join("assets/models/uploads", clean_filename)
+    
+    content = await file.read()
+    with open(target_path, "wb") as f:
+        f.write(content)
+        
+    MODEL_REGISTRY[model_id] = {
+        "id": model_id,
+        "name": name,
+        "path": target_path,
+        "architecture": architecture,
+        "target_deployment": target_deployment,
+    }
+    return {
+        "status": "uploaded_and_registered",
+        "model_id": model_id,
+        "path": target_path,
+        "name": name,
+    }
+
+
+@app.post("/api/datasets/upload")
+async def upload_dataset_metadata(
+    metadata_file: UploadFile = File(...),
+    dataset_name: str = Form("Custom Clinical Cohort"),
+):
+    """Uploads cohort metadata CSV for clinical evaluation."""
+    os.makedirs("data/uploads", exist_ok=True)
+    clean_filename = os.path.basename(metadata_file.filename or "cohort.csv")
+    dest_path = os.path.join("data/uploads", f"{int(time.time())}_{clean_filename}")
+    
+    content = await metadata_file.read()
+    with open(dest_path, "wb") as f:
+        f.write(content)
+        
+    try:
+        df = pd.read_csv(dest_path)
+        required_cols = ["patient_id", "image_path", "ground_truth"]
+        missing = [c for c in required_cols if c not in df.columns]
+        
+        return {
+            "status": "uploaded",
+            "dataset_name": dataset_name,
+            "metadata_path": dest_path,
+            "n_samples": len(df),
+            "columns": list(df.columns),
+            "valid_contract": len(missing) == 0,
+            "missing_columns": missing,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid cohort CSV format: {e}")
+
+
+@app.post("/api/audit/cohort-run")
+def run_cohort_audit_api(
+    model_id: str = Form("candidate_a_edge"),
+    modality: str = Form("retinal_fundus"),
+    metadata_path: Optional[str] = Form(None),
+    output_dir: Optional[str] = Form(None),
+):
+    """Orchestrates an end-to-end multicenter cohort audit directly via REST API."""
+    from audit_runner import run_evaluation_suite
+    from data.generate_cohort import generate_cohort
+
+    # Determine model target
+    if model_id in MODEL_REGISTRY:
+        model_target = MODEL_REGISTRY[model_id]["path"]
+    else:
+        model_target = model_id
+
+    # Determine metadata path
+    if not metadata_path:
+        if modality == "retinal_fundus":
+            metadata_path = "data/sample_retinal_metadata.csv"
+            if not os.path.exists(metadata_path):
+                os.makedirs("data", exist_ok=True)
+                sample_files = glob.glob("assets/test_samples/*.jpg")
+                if not sample_files:
+                    sample_files = ["assets/test_samples/sample_clinical_pass.jpg"]
+                rows = []
+                for i in range(1, 61):
+                    s_file = sample_files[(i - 1) % len(sample_files)]
+                    rows.append({
+                        "patient_id": f"IND-RET-{i:04d}",
+                        "image_path": s_file,
+                        "age": 30 + (i % 45),
+                        "sex": "M" if i % 2 == 0 else "F",
+                        "site_id": "AIIMS_DELHI" if i <= 30 else "DIST_HOSP_JAIPUR",
+                        "scanner_type": "TOPCON_TRC_50DX" if i % 3 != 0 else "ZEISS_VISUCAM",
+                        "ground_truth": 1 if i % 3 == 0 else 0,
+                    })
+                pd.DataFrame(rows).to_csv(metadata_path, index=False)
+        else:
+            metadata_path = "data/sample_metadata.csv"
+            if not os.path.exists(metadata_path):
+                generate_cohort(output_dir="data", n_samples=60)
+
+    # Determine output directory
+    if not output_dir:
+        run_tag = f"audit_run_{int(time.time())}"
+        output_dir = os.path.join("output", run_tag)
+
+    telemetry = run_evaluation_suite(
+        model_target=model_target,
+        metadata_path=metadata_path,
+        output_dir=output_dir,
+        modality=modality,
+    )
+    return {
+        "status": "completed",
+        "output_dir": output_dir,
+        "telemetry_url": f"/api/audit/cohort-summary?audit_id={os.path.basename(output_dir)}",
+        "pdf_url": f"/api/audit/cohort-pdf?audit_id={os.path.basename(output_dir)}",
+        "composite_trust_score": telemetry.get("composite_trust_score"),
+        "audit_run_id": telemetry.get("audit_run_id"),
+    }
+
+
+@app.get("/api/modalities")
+def get_modalities():
+    """Returns available clinical modality evaluation suites, supported stress corruptions, and benchmarks."""
+    return {
+        "modalities": [
+            {
+                "id": "retinal_fundus",
+                "name": "Ophthalmology Suite (Retinal Fundus Scans)",
+                "clinical_targets": ["Diabetic Retinopathy (5-Class)", "Glaucoma Cup/Disc", "Macular Edema"],
+                "perturbations": ["Defocus Blur", "Corneal Glare", "Illumination Drop", "Sensor Downsampling"],
+                "reference_benchmarks": ["EyePACS-1", "IDRiD", "MESSIDOR-2"],
+                "default_model": "assets/models/candidate_model_a.onnx",
+            },
+            {
+                "id": "chest_xray",
+                "name": "Thoracic Radiology Suite (Chest Radiographs)",
+                "clinical_targets": ["Pneumonia", "Infiltration", "Cardiomegaly", "Atelectasis"],
+                "perturbations": ["Contrast Attenuation", "Poisson Quantum Noise", "Patient Motion Blur", "Lead Markers"],
+                "reference_benchmarks": ["NIH ChestX-ray14", "CheXNet", "MIMIC-CXR"],
+                "default_model": "benchmark:chexnet-densenet121",
+            },
+            {
+                "id": "ehr_tabular",
+                "name": "Clinical Informatics Suite (EHR Labs & Vitals)",
+                "clinical_targets": ["Sepsis Onset (qSOFA)", "48-Hour ICU Mortality", "Length of Stay"],
+                "perturbations": ["Sensor Drift", "Missing Value MCAR/MAR", "Outlier Spike Noise"],
+                "reference_benchmarks": ["MIMIC-IV-ED", "PhysioNet 2019 Challenge"],
+                "default_model": "benchmark:tabular-xgboost",
+            }
+        ]
+    }
+
+
+@app.get("/api/pccp/triggers")
+def get_pccp_triggers():
+    """Returns FDA Predetermined Change Control Plan (PCCP) triggers and clinical actions."""
+    cfg = load_config("config/audit_thresholds.yaml")
+    return {
+        "framework": cfg.get("framework", "TrustCheck-Clinical-AI-Safety"),
+        "version": cfg.get("version", "2026.1"),
+        "pccp_triggers": cfg.get("pccp_runtime_triggers", {}),
+    }
+
+
+@app.get("/api/pccp/rules")
+def get_pccp_rules():
+    """Returns deterministic scoring weights and gating thresholds."""
+    cfg = load_config("config/audit_thresholds.yaml")
+    return {
+        "scoring_weights": cfg.get("scoring_weights", {}),
+        "gating_rules": cfg.get("gating_rules", {}),
+        "robustness_thresholds": cfg.get("engine_a_robustness", {}),
+        "fairness_thresholds": cfg.get("engine_b_fairness", {}),
+        "calibration_thresholds": cfg.get("engine_c_calibration", {}),
+    }
+
 
