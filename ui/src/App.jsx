@@ -338,7 +338,6 @@ export default function App() {
           </div>
           <div className="brand-title-group">
             <h1 className="brand-title">TrustCheck</h1>
-            <span className="brand-badge">Clinical SaMD v2.4</span>
           </div>
         </div>
 
