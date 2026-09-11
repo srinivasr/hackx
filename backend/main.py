@@ -50,8 +50,8 @@ MODEL_REGISTRY = {
     },
     "candidate_b_teacher": {
         "id": "candidate_b_teacher",
-        "name": "Candidate-Model-B (High-VRAM MaxViT)",
-        "path": "assets/models/candidate_model_a.onnx",  # Benchmark comparison profile
+        "name": "Candidate-Model-B (Server MaxViT-384)",
+        "path": "assets/models/candidate_model_b.onnx",
         "architecture": "MaxViT-384 Hybrid CNN-ViT (31M Params)",
         "target_deployment": "District Hospital GPU Server",
     },

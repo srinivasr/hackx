@@ -14,6 +14,10 @@ import {
   CheckCircle2,
   XCircle,
   Eye,
+  Upload,
+  X,
+  Folder,
+  Plus,
 } from 'lucide-react';
 import './App.css';
 
@@ -35,6 +39,23 @@ export default function App() {
   // Debounce & race condition tracking for live slider
   const debounceTimerRef = useRef(null);
   const currentRequestIdRef = useRef(0);
+
+  // Local Model & Dataset Ingestion Center Modal State
+  const [showIngestModal, setShowIngestModal] = useState(false);
+  const [ingestMode, setIngestMode] = useState('upload_model'); // 'upload_model', 'register_path', 'upload_dataset'
+  const [ingestLoading, setIngestLoading] = useState(false);
+  const [ingestSuccess, setIngestSuccess] = useState('');
+  const [ingestError, setIngestError] = useState('');
+
+  // Ingestion Form State
+  const [modelFile, setModelFile] = useState(null);
+  const [modelName, setModelName] = useState('');
+  const [modelArch, setModelArch] = useState('');
+  const [modelTier, setModelTier] = useState('Rural PHC Portable Fundus Camera');
+  const [localPath, setLocalPath] = useState('');
+  const [datasetFile, setDatasetFile] = useState(null);
+  const [datasetName, setDatasetName] = useState('');
+
 
   // Fetch registered models & initial audit data
   useEffect(() => {
@@ -69,6 +90,120 @@ export default function App() {
       console.error('Audit fetch failed', e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUploadModel = async (e) => {
+    e.preventDefault();
+    if (!modelFile) {
+      setIngestError('Please select a .onnx model file.');
+      return;
+    }
+    setIngestLoading(true);
+    setIngestError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', modelFile);
+      formData.append('name', modelName || modelFile.name.replace('.onnx', ''));
+      formData.append('architecture', modelArch || 'Custom ONNX Diagnostic Classifier');
+      formData.append('target_deployment', modelTier);
+
+      const res = await fetch('/api/models/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      const data = await res.json();
+      
+      setIngestSuccess(`Model ${data.name} successfully registered into TrustCheck!`);
+      const modelsRes = await fetch('/api/models');
+      const modelsData = await modelsRes.json();
+      if (modelsData.models) setModels(modelsData.models);
+
+      setSelectedModel(data.model_id);
+      loadLatestAudit(data.model_id);
+      setTimeout(() => {
+        setShowIngestModal(false);
+        setIngestSuccess('');
+      }, 1200);
+    } catch (err) {
+      setIngestError(err.message || 'Error uploading model');
+    } finally {
+      setIngestLoading(false);
+    }
+  };
+
+  const handleRegisterPath = async (e) => {
+    e.preventDefault();
+    if (!localPath) {
+      setIngestError('Please provide a valid file path.');
+      return;
+    }
+    setIngestLoading(true);
+    setIngestError('');
+    try {
+      const formData = new FormData();
+      const derivedId = `custom_${Date.now()}`;
+      formData.append('model_id', derivedId);
+      formData.append('name', modelName || localPath.split('/').pop() || 'Local Model');
+      formData.append('path', localPath);
+      formData.append('architecture', modelArch || 'Local Custom Model');
+      formData.append('target_deployment', modelTier);
+
+      const res = await fetch('/api/models/register', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Registration failed');
+      const data = await res.json();
+
+      setIngestSuccess(`Model ${data.model.name} registered from local path!`);
+      const modelsRes = await fetch('/api/models');
+      const modelsData = await modelsRes.json();
+      if (modelsData.models) setModels(modelsData.models);
+
+      setSelectedModel(derivedId);
+      loadLatestAudit(derivedId);
+      setTimeout(() => {
+        setShowIngestModal(false);
+        setIngestSuccess('');
+      }, 1200);
+    } catch (err) {
+      setIngestError(err.message || 'Error registering path');
+    } finally {
+      setIngestLoading(false);
+    }
+  };
+
+  const handleUploadDataset = async (e) => {
+    e.preventDefault();
+    if (!datasetFile) {
+      setIngestError('Please select a .csv metadata cohort file.');
+      return;
+    }
+    setIngestLoading(true);
+    setIngestError('');
+    try {
+      const formData = new FormData();
+      formData.append('metadata_file', datasetFile);
+      formData.append('dataset_name', datasetName || datasetFile.name.replace('.csv', ''));
+
+      const res = await fetch('/api/datasets/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Dataset upload failed');
+      const data = await res.json();
+
+      setIngestSuccess(`Dataset ${data.dataset_name} (${data.n_samples} cohort patients) ingested successfully!`);
+      setTimeout(() => {
+        setShowIngestModal(false);
+        setIngestSuccess('');
+      }, 1500);
+    } catch (err) {
+      setIngestError(err.message || 'Error uploading dataset');
+    } finally {
+      setIngestLoading(false);
     }
   };
 
@@ -193,6 +328,19 @@ export default function App() {
               ))}
             </select>
           </div>
+
+          <button
+            onClick={() => {
+              setShowIngestModal(true);
+              setIngestError('');
+              setIngestSuccess('');
+            }}
+            className="btn btn-secondary"
+            title="Import or upload models & datasets from local hardware"
+          >
+            <Upload size={13} />
+            <span>Ingest Local Model</span>
+          </button>
 
           <button onClick={handleRunAudit} disabled={loading} className="btn btn-primary">
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
@@ -949,6 +1097,246 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* LOCAL MODEL & DATASET INGESTION MODAL */}
+      {showIngestModal && (
+        <div className="modal-backdrop" onClick={() => setShowIngestModal(false)}>
+          <div className="modal-window card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3 className="modal-title">Clinical AI Ingestion Center</h3>
+                <p className="modal-desc">
+                  Select and evaluate models directly from your local hardware or hospital PACS storage.
+                </p>
+              </div>
+              <button
+                className="btn-icon"
+                onClick={() => setShowIngestModal(false)}
+                aria-label="Close modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="modal-tabs">
+              <button
+                type="button"
+                className={`modal-tab-btn ${ingestMode === 'upload_model' ? 'active' : ''}`}
+                onClick={() => { setIngestMode('upload_model'); setIngestError(''); }}
+              >
+                <Upload size={14} /> Upload .ONNX Model
+              </button>
+              <button
+                type="button"
+                className={`modal-tab-btn ${ingestMode === 'register_path' ? 'active' : ''}`}
+                onClick={() => { setIngestMode('register_path'); setIngestError(''); }}
+              >
+                <Folder size={14} /> Local Hardware Path
+              </button>
+              <button
+                type="button"
+                className={`modal-tab-btn ${ingestMode === 'upload_dataset' ? 'active' : ''}`}
+                onClick={() => { setIngestMode('upload_dataset'); setIngestError(''); }}
+              >
+                <FileText size={14} /> Cohort CSV Dataset
+              </button>
+            </div>
+
+            {ingestSuccess && (
+              <div className="alert-success-box" style={{ marginBottom: '16px' }}>
+                <CheckCircle2 size={16} />
+                <span>{ingestSuccess}</span>
+              </div>
+            )}
+
+            {ingestError && (
+              <div className="alert-danger-box" style={{ marginBottom: '16px' }}>
+                <AlertTriangle size={16} />
+                <span>{ingestError}</span>
+              </div>
+            )}
+
+            {/* TAB 1: UPLOAD LOCAL ONNX MODEL */}
+            {ingestMode === 'upload_model' && (
+              <form onSubmit={handleUploadModel} className="modal-form">
+                <div className="form-group">
+                  <label className="form-label">Select .ONNX Model File from Local Storage:</label>
+                  <div className="file-dropzone">
+                    <input
+                      type="file"
+                      accept=".onnx"
+                      onChange={(e) => setModelFile(e.target.files[0])}
+                      className="file-input"
+                      id="onnx-file-input"
+                    />
+                    <label htmlFor="onnx-file-input" className="file-dropzone-label">
+                      <Upload size={24} color="#3b82f6" />
+                      <span>{modelFile ? modelFile.name : 'Click to browse local .onnx weights'}</span>
+                      <small style={{ color: 'var(--text-muted)' }}>Supports FP32/FP16 exported ONNX graphs</small>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Model Display Name:</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Candidate-Model-C (Hospital ResNet-50)"
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Architecture Profile:</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. ResNet50 + SE Attention (25.6M Params)"
+                      value={modelArch}
+                      onChange={(e) => setModelArch(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Deployment Environment Tier:</label>
+                    <select
+                      value={modelTier}
+                      onChange={(e) => setModelTier(e.target.value)}
+                      className="form-select"
+                    >
+                      <option value="Rural PHC Portable Device">Tier 1: Rural PHC Smartphone / Edge</option>
+                      <option value="District Hospital GPU Server">Tier 2: District Hospital Server</option>
+                      <option value="Tertiary PACS Sandbox">Tier 3: Tertiary Cloud PACS</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    onClick={() => setShowIngestModal(false)}
+                    className="btn btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={ingestLoading || !modelFile}
+                    className="btn btn-primary"
+                  >
+                    <RefreshCw size={14} className={ingestLoading ? 'spin' : ''} />
+                    {ingestLoading ? 'Ingesting & Initializing Model...' : 'Ingest Model & Run Audit'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* TAB 2: REGISTER HARDWARE PATH */}
+            {ingestMode === 'register_path' && (
+              <form onSubmit={handleRegisterPath} className="modal-form">
+                <div className="form-group">
+                  <label className="form-label">Absolute or Relative Local File Path:</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. assets/models/candidate_model_b.onnx or /data/models/dr_model.onnx"
+                    value={localPath}
+                    onChange={(e) => setLocalPath(e.target.value)}
+                    className="form-input"
+                    required
+                  />
+                  <small style={{ color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                    Path on the host machine running TrustCheck.
+                  </small>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Model Display Name:</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Candidate-Model-Local"
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    onClick={() => setShowIngestModal(false)}
+                    className="btn btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={ingestLoading || !localPath}
+                    className="btn btn-primary"
+                  >
+                    <RefreshCw size={14} className={ingestLoading ? 'spin' : ''} />
+                    {ingestLoading ? 'Registering...' : 'Register Local Model'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* TAB 3: UPLOAD COHORT CSV */}
+            {ingestMode === 'upload_dataset' && (
+              <form onSubmit={handleUploadDataset} className="modal-form">
+                <div className="form-group">
+                  <label className="form-label">Select Cohort Metadata (.CSV) File:</label>
+                  <div className="file-dropzone">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => setDatasetFile(e.target.files[0])}
+                      className="file-input"
+                      id="csv-file-input"
+                    />
+                    <label htmlFor="csv-file-input" className="file-dropzone-label">
+                      <FileText size={24} color="#3b82f6" />
+                      <span>{datasetFile ? datasetFile.name : 'Click to select cohort metadata (.csv)'}</span>
+                      <small style={{ color: 'var(--text-muted)' }}>Must include patient_id, image_path, ground_truth</small>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Cohort Dataset Name:</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. AIIMS Delhi DR Validation Cohort"
+                    value={datasetName}
+                    onChange={(e) => setDatasetName(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    onClick={() => setShowIngestModal(false)}
+                    className="btn btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={ingestLoading || !datasetFile}
+                    className="btn btn-primary"
+                  >
+                    <RefreshCw size={14} className={ingestLoading ? 'spin' : ''} />
+                    {ingestLoading ? 'Ingesting Dataset...' : 'Ingest Cohort Dataset'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
