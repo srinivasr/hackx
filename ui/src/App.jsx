@@ -1495,24 +1495,6 @@ export default function App() {
                   Reset to Baseline (0% Stress)
                 </button>
               </div>
-
-              <div style={{ marginTop: 16, padding: '10px 12px', background: 'var(--bg-surface-sunken)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', fontSize: 11 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Backend Connection:</span>
-                  <span className={`live-badge ${stressLoading ? 'updating' : ''}`}>
-                    <span className="live-dot" />
-                    {stressLoading ? 'Syncing...' : 'Connected • Live'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 10 }}>
-                  <span>Endpoint:</span>
-                  <code style={{ fontSize: 10 }}>POST /api/stress/single</code>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 10, marginTop: 2 }}>
-                  <span>Target Evaluator:</span>
-                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{selectedModel}</span>
-                </div>
-              </div>
             </div>
 
             {/* Live Inspection Viewer */}
