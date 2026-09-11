@@ -679,3 +679,73 @@
   align-items: center;
   gap: 7px;
 }
+
+/* Cohort Suite Layout (SOTA) */
+.cohort-container {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.cohort-meta-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.cohort-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+@media (max-width: 1024px) {
+  .cohort-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.veto-box {
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger-border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.veto-box-icon {
+  color: #f87171;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.veto-box-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f87171;
+  margin-bottom: 2px;
+}
+
+.veto-box-desc {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--bg-surface-sunken);
+  border: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}

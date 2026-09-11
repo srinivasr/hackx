@@ -1,6 +1,7 @@
 import os
 import glob
 import base64
+import json
 from typing import Dict, Any, Optional
 import cv2
 import numpy as np
@@ -200,3 +201,29 @@ async def test_single_stress(
         "latency_ms": result["latency_ms"],
         "image_base64": f"data:image/jpeg;base64,{b64_img}",
     }
+
+
+@app.get("/api/audit/cohort-summary")
+def get_cohort_summary():
+    """Returns standardized multicenter cohort audit telemetry (G-AUDIT, DCA, Prevalence Shift)."""
+    telemetry_path = "output/audit_run_01/telemetry.json"
+    if os.path.exists(telemetry_path):
+        with open(telemetry_path, "r") as f:
+            return json.load(f)
+    return {
+        "status": "not_executed",
+        "message": "Cohort audit telemetry not found. Run ./start.sh 2 to generate.",
+    }
+
+
+@app.get("/api/audit/cohort-pdf")
+def get_cohort_pdf():
+    """Downloads FDA/CDSCO SaMD regulatory audit certificate PDF."""
+    pdf_path = "output/audit_run_01/audit_certificate.pdf"
+    if os.path.exists(pdf_path):
+        return FileResponse(
+            pdf_path,
+            media_type="application/pdf",
+            filename="TrustCheck_Hospital_Safety_Certificate.pdf",
+        )
+    raise HTTPException(status_code=404, detail="Cohort PDF certificate not generated yet.")

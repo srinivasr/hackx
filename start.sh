@@ -23,6 +23,11 @@ case "$ACTION" in
             --output-dir output/audit_run_01
         ;;
     3)
+        if [ ! -d "$SCRIPT_DIR/ui/node_modules" ]; then
+            echo "📦 Installing Web UI dependencies (first run)..."
+            nix develop "$SCRIPT_DIR" --command bash -c "cd '$SCRIPT_DIR/ui' && npm install"
+        fi
+
         echo "Starting FastAPI Audit Server (Port 8000)..."
         nix develop "$SCRIPT_DIR" --command python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 &
         BACKEND_PID=$!

@@ -117,6 +117,7 @@ class ClinicalModelWrapper:
         self.tier_profile = "TIER_1_BLACK_BOX" if self.is_rest else "TIER_2_WHITE_BOX"
         self.torch_model: Optional[nn.Module] = None
         self.onnx_session = None
+        self.input_spatial_size = (224, 224)
         self._init_target()
 
     def _init_target(self):
@@ -127,7 +128,10 @@ class ClinicalModelWrapper:
             import onnxruntime as ort
             providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if ort.get_device() == "GPU" else ["CPUExecutionProvider"]
             self.onnx_session = ort.InferenceSession(self.target, providers=providers)
-            self.input_name = self.onnx_session.get_inputs()[0].name
+            inp = self.onnx_session.get_inputs()[0]
+            self.input_name = inp.name
+            if len(inp.shape) >= 4 and isinstance(inp.shape[-2], int) and isinstance(inp.shape[-1], int):
+                self.input_spatial_size = (inp.shape[-2], inp.shape[-1])
             return
 
         if self.is_benchmark or (isinstance(self.target, str) and not os.path.exists(self.target)):
@@ -163,8 +167,11 @@ class ClinicalModelWrapper:
                 else:
                     raise ValueError(f"Unrecognized PyTorch model object in {self.target}")
 
-    def preprocess(self, img: np.ndarray, target_size: Tuple[int, int] = (224, 224)) -> np.ndarray:
+    def preprocess(self, img: np.ndarray, target_size: Optional[Tuple[int, int]] = None) -> np.ndarray:
         """Standardizes inputs to (1, 3, H, W) normalized tensor."""
+        if target_size is None:
+            target_size = self.input_spatial_size
+
         if img.ndim == 2:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         elif img.shape[2] == 1:
@@ -199,14 +206,25 @@ class ClinicalModelWrapper:
         tensors = np.stack([self.preprocess(img) for img in images], axis=0)
 
         if self.onnx_session is not None:
-            inputs = {self.input_name: tensors}
-            outputs = self.onnx_session.run(None, inputs)
-            logits = outputs[0]
+            all_logits = []
+            batch_size = 16
+            for b_idx in range(0, len(images), batch_size):
+                batch_tensors = tensors[b_idx : b_idx + batch_size]
+                b_outs = self.onnx_session.run(None, {self.input_name: batch_tensors})
+                all_logits.append(b_outs[0])
+            logits = np.concatenate(all_logits, axis=0) if len(all_logits) > 1 else all_logits[0]
             exp_l = np.exp(logits - np.max(logits, axis=1, keepdims=True))
             probs = exp_l / np.sum(exp_l, axis=1, keepdims=True)
-            confs = probs[:, 1] if probs.shape[1] > 1 else probs[:, 0]
+            if probs.shape[1] == 5:
+                # 5-class Diabetic Retinopathy: 0=No DR, 1=Mild, 2=Mod, 3=Severe, 4=PDR
+                # Pathological/Referable DR probability is 1.0 - prob(No DR)
+                confs = 1.0 - probs[:, 0]
+            elif probs.shape[1] > 1:
+                confs = probs[:, 1]
+            else:
+                confs = probs[:, 0]
             preds = (confs >= 0.50).astype(int)
-            embeddings = logits if logits.shape[1] > 2 else np.repeat(logits, 16, axis=1)
+            embeddings = logits if logits.shape[1] >= 8 else np.repeat(logits, 16, axis=1)
             return confs, preds, embeddings
 
         model = self.torch_model

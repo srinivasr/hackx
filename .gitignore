@@ -68,3 +68,7 @@ result-*
 .env
 .env.*
 !.envrc
+
+# ── Sample Data ────────────────────────────────────────
+data/sample_retinal_scans/
+data/sample_retinal_metadata.csv
