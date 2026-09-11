@@ -429,7 +429,7 @@ export default function App() {
           className={`tab-btn ${activeTab === 'arena' ? 'active' : ''}`}
           onClick={() => setActiveTab('arena')}
         >
-          <Cpu size={15} /> Model Comparison Arena
+          <Cpu size={15} /> Model Comparison
         </button>
       </nav>
 
@@ -585,86 +585,86 @@ export default function App() {
               </div>
               <div className="table-wrapper">
                 <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Stress Vector</th>
-                    <th>Min Parameter</th>
-                    <th>Max Stress Level</th>
-                    <th>Retained Model Stability</th>
-                    <th>Clinical Safety Verdict</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><strong>Defocus / Motion Blur</strong></td>
-                    <td className="num-tabular">σ = 0.0</td>
-                    <td className="num-tabular">σ = 6.0 (Severe movement)</td>
-                    <td>
-                      <div className="table-retention-cell">
-                        <span className="num-tabular">{auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
-                        <div className="retention-mini-track">
-                          <div
-                            className="retention-mini-fill fail"
-                            style={{ width: `${Math.min(100, auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
-                          />
+                  <thead>
+                    <tr>
+                      <th>Stress Vector</th>
+                      <th>Min Parameter</th>
+                      <th>Max Stress Level</th>
+                      <th>Retained Model Stability</th>
+                      <th>Clinical Safety Verdict</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><strong>Defocus / Motion Blur</strong></td>
+                      <td className="num-tabular">σ = 0.0</td>
+                      <td className="num-tabular">σ = 6.0 (Severe movement)</td>
+                      <td>
+                        <div className="table-retention-cell">
+                          <span className="num-tabular">{auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
+                          <div className="retention-mini-track">
+                            <div
+                              className="retention-mini-fill fail"
+                              style={{ width: `${Math.min(100, auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td><span className="status-pill status-pill-fail">FAIL • Sub-threshold</span></td>
-                  </tr>
-                  <tr>
-                    <td><strong>Flash / Illumination Drop</strong></td>
-                    <td className="num-tabular">100% Brightness</td>
-                    <td className="num-tabular">-80% (Undilated pupil)</td>
-                    <td>
-                      <div className="table-retention-cell">
-                        <span className="num-tabular">{auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
-                        <div className="retention-mini-track">
-                          <div
-                            className="retention-mini-fill fail"
-                            style={{ width: `${Math.min(100, auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
-                          />
+                      </td>
+                      <td><span className="status-pill status-pill-fail">FAIL • Sub-threshold</span></td>
+                    </tr>
+                    <tr>
+                      <td><strong>Flash / Illumination Drop</strong></td>
+                      <td className="num-tabular">100% Brightness</td>
+                      <td className="num-tabular">-80% (Undilated pupil)</td>
+                      <td>
+                        <div className="table-retention-cell">
+                          <span className="num-tabular">{auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
+                          <div className="retention-mini-track">
+                            <div
+                              className="retention-mini-fill fail"
+                              style={{ width: `${Math.min(100, auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td><span className="status-pill status-pill-fail">FAIL • Severe Sensitivity</span></td>
-                  </tr>
-                  <tr>
-                    <td><strong>Corneal Glare Reflection</strong></td>
-                    <td className="num-tabular">0.00</td>
-                    <td className="num-tabular">0.95 (Corneal Whiteout)</td>
-                    <td>
-                      <div className="table-retention-cell">
-                        <span className="num-tabular">{auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
-                        <div className="retention-mini-track">
-                          <div
-                            className="retention-mini-fill fail"
-                            style={{ width: `${Math.min(100, auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
-                          />
+                      </td>
+                      <td><span className="status-pill status-pill-fail">FAIL • Severe Sensitivity</span></td>
+                    </tr>
+                    <tr>
+                      <td><strong>Corneal Glare Reflection</strong></td>
+                      <td className="num-tabular">0.00</td>
+                      <td className="num-tabular">0.95 (Corneal Whiteout)</td>
+                      <td>
+                        <div className="table-retention-cell">
+                          <span className="num-tabular">{auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
+                          <div className="retention-mini-track">
+                            <div
+                              className="retention-mini-fill fail"
+                              style={{ width: `${Math.min(100, auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td><span className="status-pill status-pill-fail">FAIL • Aperture Saturated</span></td>
-                  </tr>
-                  <tr>
-                    <td><strong>Sensor Resolution Downsampling</strong></td>
-                    <td className="num-tabular">384×384 px</td>
-                    <td className="num-tabular">96×96 px (Extreme drop)</td>
-                    <td>
-                      <div className="table-retention-cell">
-                        <span className="num-tabular">{auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
-                        <div className="retention-mini-track">
-                          <div
-                            className="retention-mini-fill pass"
-                            style={{ width: `${Math.min(100, auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
-                          />
+                      </td>
+                      <td><span className="status-pill status-pill-fail">FAIL • Aperture Saturated</span></td>
+                    </tr>
+                    <tr>
+                      <td><strong>Sensor Resolution Downsampling</strong></td>
+                      <td className="num-tabular">384×384 px</td>
+                      <td className="num-tabular">96×96 px (Extreme drop)</td>
+                      <td>
+                        <div className="table-retention-cell">
+                          <span className="num-tabular">{auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
+                          <div className="retention-mini-track">
+                            <div
+                              className="retention-mini-fill pass"
+                              style={{ width: `${Math.min(100, auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td><span className="status-pill status-pill-pass">PASS • Tolerant</span></td>
-                  </tr>
-                </tbody>
-              </table>
+                      </td>
+                      <td><span className="status-pill status-pill-pass">PASS • Tolerant</span></td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -830,54 +830,54 @@ export default function App() {
                   </div>
                   <div className="table-wrapper">
                     <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Non-Clinical Attribute</th>
-                        <th>Detectability AUC</th>
-                        <th>Utility AUC</th>
-                        <th>Risk Assessment</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cohortData?.metrics?.gaudit_shortcut_risk?.gaudit_matrix &&
-                        Object.entries(cohortData.metrics.gaudit_shortcut_risk.gaudit_matrix).map(([attr, val]) => (
-                          <tr key={attr}>
-                            <td><strong>{attr}</strong></td>
-                            <td>{(val.detectability_auc).toFixed(2)}</td>
-                            <td>{(val.utility_auc).toFixed(2)}</td>
-                            <td>
-                              {val.risk_status === 'HIGH_SHORTCUT_HAZARD' ? (
-                                <span className="status-fail">HIGH HAZARD</span>
-                              ) : (
-                                <span className="status-pass">LOW RISK</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      {(!cohortData?.metrics?.gaudit_shortcut_risk?.gaudit_matrix) && (
-                        <>
-                          <tr>
-                            <td><strong>sex</strong></td>
-                            <td>0.74</td>
-                            <td>0.68</td>
-                            <td><span className="status-fail">HIGH HAZARD</span></td>
-                          </tr>
-                          <tr>
-                            <td><strong>site_id</strong></td>
-                            <td>0.81</td>
-                            <td>0.62</td>
-                            <td><span className="status-fail">HIGH HAZARD</span></td>
-                          </tr>
-                          <tr>
-                            <td><strong>scanner_type</strong></td>
-                            <td>0.54</td>
-                            <td>0.51</td>
-                            <td><span className="status-pass">LOW RISK</span></td>
-                          </tr>
-                        </>
-                      )}
-                    </tbody>
-                  </table>
+                      <thead>
+                        <tr>
+                          <th>Non-Clinical Attribute</th>
+                          <th>Detectability AUC</th>
+                          <th>Utility AUC</th>
+                          <th>Risk Assessment</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cohortData?.metrics?.gaudit_shortcut_risk?.gaudit_matrix &&
+                          Object.entries(cohortData.metrics.gaudit_shortcut_risk.gaudit_matrix).map(([attr, val]) => (
+                            <tr key={attr}>
+                              <td><strong>{attr}</strong></td>
+                              <td>{(val.detectability_auc).toFixed(2)}</td>
+                              <td>{(val.utility_auc).toFixed(2)}</td>
+                              <td>
+                                {val.risk_status === 'HIGH_SHORTCUT_HAZARD' ? (
+                                  <span className="status-fail">HIGH HAZARD</span>
+                                ) : (
+                                  <span className="status-pass">LOW RISK</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        {(!cohortData?.metrics?.gaudit_shortcut_risk?.gaudit_matrix) && (
+                          <>
+                            <tr>
+                              <td><strong>sex</strong></td>
+                              <td>0.74</td>
+                              <td>0.68</td>
+                              <td><span className="status-fail">HIGH HAZARD</span></td>
+                            </tr>
+                            <tr>
+                              <td><strong>site_id</strong></td>
+                              <td>0.81</td>
+                              <td>0.62</td>
+                              <td><span className="status-fail">HIGH HAZARD</span></td>
+                            </tr>
+                            <tr>
+                              <td><strong>scanner_type</strong></td>
+                              <td>0.54</td>
+                              <td>0.51</td>
+                              <td><span className="status-pass">LOW RISK</span></td>
+                            </tr>
+                          </>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
@@ -892,32 +892,32 @@ export default function App() {
                   </div>
                   <div className="table-wrapper">
                     <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Clinical Setting (Prevalence)</th>
-                        <th>Bayes PPV</th>
-                        <th>Alert Fatigue Ratio</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cohortData?.metrics?.prevalence_shift_simulation?.ladder ? (
-                        cohortData.metrics.prevalence_shift_simulation.ladder.map((row, idx) => (
-                          <tr key={idx}>
-                            <td><strong>{(row.prevalence * 100).toFixed(0)}%</strong> {row.prevalence >= 0.15 ? '(Tertiary Center)' : row.prevalence <= 0.05 ? '(Community Screening)' : '(Secondary Hospital)'}</td>
-                            <td>{(row.bayes_ppv * 100).toFixed(1)}%</td>
-                            <td><span className={row.false_alert_burden_ratio > 3.0 ? 'status-fail' : 'status-pass'}>{row.false_alert_burden_ratio.toFixed(2)}x</span></td>
-                          </tr>
-                        ))
-                      ) : (
-                        <>
-                          <tr><td><strong>20% (Tertiary)</strong></td><td>84.2%</td><td><span className="status-pass">1.00x</span></td></tr>
-                          <tr><td><strong>10% (Secondary)</strong></td><td>71.4%</td><td><span className="status-pass">1.82x</span></td></tr>
-                          <tr><td><strong>5% (Community)</strong></td><td>52.6%</td><td><span className="status-fail">3.64x</span></td></tr>
-                          <tr><td><strong>2% (Rural Screen)</strong></td><td>18.1%</td><td><span className="status-fail">7.28x</span></td></tr>
-                        </>
-                      )}
-                    </tbody>
-                  </table>
+                      <thead>
+                        <tr>
+                          <th>Clinical Setting (Prevalence)</th>
+                          <th>Bayes PPV</th>
+                          <th>Alert Fatigue Ratio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cohortData?.metrics?.prevalence_shift_simulation?.ladder ? (
+                          cohortData.metrics.prevalence_shift_simulation.ladder.map((row, idx) => (
+                            <tr key={idx}>
+                              <td><strong>{(row.prevalence * 100).toFixed(0)}%</strong> {row.prevalence >= 0.15 ? '(Tertiary Center)' : row.prevalence <= 0.05 ? '(Community Screening)' : '(Secondary Hospital)'}</td>
+                              <td>{(row.bayes_ppv * 100).toFixed(1)}%</td>
+                              <td><span className={row.false_alert_burden_ratio > 3.0 ? 'status-fail' : 'status-pass'}>{row.false_alert_burden_ratio.toFixed(2)}x</span></td>
+                            </tr>
+                          ))
+                        ) : (
+                          <>
+                            <tr><td><strong>20% (Tertiary)</strong></td><td>84.2%</td><td><span className="status-pass">1.00x</span></td></tr>
+                            <tr><td><strong>10% (Secondary)</strong></td><td>71.4%</td><td><span className="status-pass">1.82x</span></td></tr>
+                            <tr><td><strong>5% (Community)</strong></td><td>52.6%</td><td><span className="status-fail">3.64x</span></td></tr>
+                            <tr><td><strong>2% (Rural Screen)</strong></td><td>18.1%</td><td><span className="status-fail">7.28x</span></td></tr>
+                          </>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
@@ -935,40 +935,40 @@ export default function App() {
                   </div>
                   <div className="table-wrapper">
                     <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Decision Threshold (pt)</th>
-                        <th>Model Net Benefit</th>
-                        <th>Treat-All Baseline</th>
-                        <th>Utility Assessment</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cohortData?.metrics?.clinical_utility_dca?.net_benefit_curve ? (
-                        cohortData.metrics.clinical_utility_dca.net_benefit_curve.map((row, idx) => (
-                          <tr key={idx}>
-                            <td><strong>{(row.threshold_pt * 100).toFixed(0)}%</strong></td>
-                            <td className="status-pass">{row.net_benefit_model.toFixed(3)}</td>
-                            <td>{row.net_benefit_treat_all.toFixed(3)}</td>
-                            <td>
-                              {row.net_benefit_model > row.net_benefit_treat_all ? (
-                                <span className="status-pass">CLINICAL ADVANTAGE</span>
-                              ) : (
-                                <span className="status-fail">NO BENEFIT OVER TREAT-ALL</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <>
-                          <tr><td><strong>10%</strong></td><td className="status-pass">0.450</td><td>0.380</td><td><span className="status-pass">CLINICAL ADVANTAGE</span></td></tr>
-                          <tr><td><strong>20%</strong></td><td className="status-pass">0.390</td><td>0.250</td><td><span className="status-pass">CLINICAL ADVANTAGE</span></td></tr>
-                          <tr><td><strong>30%</strong></td><td className="status-pass">0.310</td><td>0.140</td><td><span className="status-pass">CLINICAL ADVANTAGE</span></td></tr>
-                          <tr><td><strong>40%</strong></td><td className="status-pass">0.240</td><td>0.050</td><td><span className="status-pass">CLINICAL ADVANTAGE</span></td></tr>
-                        </>
-                      )}
-                    </tbody>
-                  </table>
+                      <thead>
+                        <tr>
+                          <th>Decision Threshold (pt)</th>
+                          <th>Model Net Benefit</th>
+                          <th>Treat-All Baseline</th>
+                          <th>Utility Assessment</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cohortData?.metrics?.clinical_utility_dca?.net_benefit_curve ? (
+                          cohortData.metrics.clinical_utility_dca.net_benefit_curve.map((row, idx) => (
+                            <tr key={idx}>
+                              <td><strong>{(row.threshold_pt * 100).toFixed(0)}%</strong></td>
+                              <td className="status-pass">{row.net_benefit_model.toFixed(3)}</td>
+                              <td>{row.net_benefit_treat_all.toFixed(3)}</td>
+                              <td>
+                                {row.net_benefit_model > row.net_benefit_treat_all ? (
+                                  <span className="status-pass">CLINICAL ADVANTAGE</span>
+                                ) : (
+                                  <span className="status-fail">NO BENEFIT OVER TREAT-ALL</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <>
+                            <tr><td><strong>10%</strong></td><td className="status-pass">0.450</td><td>0.380</td><td><span className="status-pass">CLINICAL ADVANTAGE</span></td></tr>
+                            <tr><td><strong>20%</strong></td><td className="status-pass">0.390</td><td>0.250</td><td><span className="status-pass">CLINICAL ADVANTAGE</span></td></tr>
+                            <tr><td><strong>30%</strong></td><td className="status-pass">0.310</td><td>0.140</td><td><span className="status-pass">CLINICAL ADVANTAGE</span></td></tr>
+                            <tr><td><strong>40%</strong></td><td className="status-pass">0.240</td><td>0.050</td><td><span className="status-pass">CLINICAL ADVANTAGE</span></td></tr>
+                          </>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
@@ -1111,7 +1111,7 @@ export default function App() {
 
                 <div className="telemetry-panel">
                   <h4>Model Decision Telemetry</h4>
-                  
+
                   <div className="telemetry-item">
                     <span className="t-label">Diagnostic Output:</span>
                     <span className="t-val">Grade {liveStressResult?.predicted_grade} ({
@@ -1217,7 +1217,7 @@ export default function App() {
             <div className="card">
               <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                  <h3 className="card-title-text">Model-to-Model Clinical Benchmarking Arena</h3>
+                  <h3 className="card-title-text">Model-to-Model Clinical Benchmarking</h3>
                   <p className="card-desc">
                     Side-by-side deployment audit comparing Mobile Edge architectures vs Heavyweight Hospital Server models.
                   </p>
@@ -1246,116 +1246,116 @@ export default function App() {
               {arenaModality === 'retinal_dr' ? (
                 <div className="table-wrapper">
                   <table className="data-table arena-table">
-                  <thead>
-                    <tr>
-                      <th>Evaluation Metric</th>
-                      <th>DR Mobile LCNet (Edge)</th>
-                      <th>DR ResNet Teacher (Server)</th>
-                      <th>Clinical Safety Implication</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><strong>Architecture Type</strong></td>
-                      <td>PP-LCNet + MSAG Attention</td>
-                      <td>ResNet18 Deep Ensemble</td>
-                      <td>Edge-efficiency vs Expressive capacity</td>
-                    </tr>
-                    <tr>
-                      <td><strong>Model Size / Parameters</strong></td>
-                      <td><span className="status-pass">7.6M Params (12.7 MB)</span></td>
-                      <td><span className="status-fail">11.2M Params (44.6 MB)</span></td>
-                      <td>Mobile memory footprint feasibility</td>
-                    </tr>
-                    <tr>
-                      <td><strong>Inference Latency (RTX 5060)</strong></td>
-                      <td><span className="status-pass">6.8 ms (146 FPS)</span></td>
-                      <td>14.2 ms (70 FPS)</td>
-                      <td>Real-time technician interactive feedback</td>
-                    </tr>
-                    <tr>
-                      <td><strong>In-Domain AUC (EyePACS)</strong></td>
-                      <td>92.8%</td>
-                      <td><span className="status-pass">95.4%</span></td>
-                      <td>Laboratory performance on clean inputs</td>
-                    </tr>
-                    <tr>
-                      <td><strong>Defocus Noise Resilience</strong></td>
-                      <td><span className="status-fail">28.0% Stability Retained</span></td>
-                      <td><span className="status-pass">64.5% Stability Retained</span></td>
-                      <td>Teacher representation resists localized blur</td>
-                    </tr>
-                    <tr>
-                      <td><strong>Expected Calibration Error (ECE)</strong></td>
-                      <td><span className="status-fail">18.4% (Overconfident)</span></td>
-                      <td><span className="status-pass">4.2% (Well-calibrated)</span></td>
-                      <td>Student network requires temperature scaling</td>
-                    </tr>
-                    <tr>
-                      <td><strong>Final Deployment Verdict</strong></td>
-                      <td><span className="badge badge-warning">CONDITIONAL PASS</span></td>
-                      <td><span className="badge badge-success">APPROVED FOR GPU SERVER</span></td>
-                      <td>DR Mobile LCNet requires upstream hardware IQA gate</td>
-                    </tr>
-                  </tbody>
-                </table>
+                    <thead>
+                      <tr>
+                        <th>Evaluation Metric</th>
+                        <th>DR Mobile LCNet (Edge)</th>
+                        <th>DR ResNet Teacher (Server)</th>
+                        <th>Clinical Safety Implication</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><strong>Architecture Type</strong></td>
+                        <td>PP-LCNet + MSAG Attention</td>
+                        <td>ResNet18 Deep Ensemble</td>
+                        <td>Edge-efficiency vs Expressive capacity</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Model Size / Parameters</strong></td>
+                        <td><span className="status-pass">7.6M Params (12.7 MB)</span></td>
+                        <td><span className="status-fail">11.2M Params (44.6 MB)</span></td>
+                        <td>Mobile memory footprint feasibility</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Inference Latency (RTX 5060)</strong></td>
+                        <td><span className="status-pass">6.8 ms (146 FPS)</span></td>
+                        <td>14.2 ms (70 FPS)</td>
+                        <td>Real-time technician interactive feedback</td>
+                      </tr>
+                      <tr>
+                        <td><strong>In-Domain AUC (EyePACS)</strong></td>
+                        <td>92.8%</td>
+                        <td><span className="status-pass">95.4%</span></td>
+                        <td>Laboratory performance on clean inputs</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Defocus Noise Resilience</strong></td>
+                        <td><span className="status-fail">28.0% Stability Retained</span></td>
+                        <td><span className="status-pass">64.5% Stability Retained</span></td>
+                        <td>Teacher representation resists localized blur</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Expected Calibration Error (ECE)</strong></td>
+                        <td><span className="status-fail">18.4% (Overconfident)</span></td>
+                        <td><span className="status-pass">4.2% (Well-calibrated)</span></td>
+                        <td>Student network requires temperature scaling</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Final Deployment Verdict</strong></td>
+                        <td><span className="badge badge-warning">CONDITIONAL PASS</span></td>
+                        <td><span className="badge badge-success">APPROVED FOR GPU SERVER</span></td>
+                        <td>DR Mobile LCNet requires upstream hardware IQA gate</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               ) : (
                 <div className="table-wrapper">
                   <table className="data-table arena-table">
-                  <thead>
-                    <tr>
-                      <th>Evaluation Metric</th>
-                      <th>CXR MobileNetV2 (Bedside Cart Edge)</th>
-                      <th>CXR CheXNet DenseNet121 (Hospital Grade)</th>
-                      <th>Clinical Safety Implication</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><strong>Architecture Type</strong></td>
-                      <td>MobileNetV2 Depthwise-Conv</td>
-                      <td>DenseNet-121 Feature Reuse</td>
-                      <td>Portable ICU Cart vs Radiology Workstation</td>
-                    </tr>
-                    <tr>
-                      <td><strong>Model Size / Parameters</strong></td>
-                      <td><span className="status-pass">3.5M Params (8.4 MB)</span></td>
-                      <td><span className="status-fail">7.0M Params (27.7 MB)</span></td>
-                      <td>Battery runtime & low thermal envelope</td>
-                    </tr>
-                    <tr>
-                      <td><strong>Inference Latency (RTX 5060)</strong></td>
-                      <td><span className="status-pass">4.1 ms (240 FPS)</span></td>
-                      <td>12.8 ms (78 FPS)</td>
-                      <td>Instantaneous bedside triage at patient bed</td>
-                    </tr>
-                    <tr>
-                      <td><strong>In-Domain AUC (NIH CXR-14)</strong></td>
-                      <td>74.2%</td>
-                      <td><span className="status-pass">86.8%</span></td>
-                      <td>Baseline consolidation/infiltrate detection</td>
-                    </tr>
-                    <tr>
-                      <td><strong>CR vs DR Contrast Sensitivity</strong></td>
-                      <td><span className="status-fail">42.1% Stability Retained</span></td>
-                      <td><span className="status-pass">78.4% Stability Retained</span></td>
-                      <td>Edge model fails when contrast drops &gt; 15%</td>
-                    </tr>
-                    <tr>
-                      <td><strong>Expected Calibration Error (ECE)</strong></td>
-                      <td><span className="status-fail">10.8% (Borderline Overconfident)</span></td>
-                      <td><span className="status-pass">3.8% (Calibrated Posterior)</span></td>
-                      <td>Overconfidence on ambiguous lung opacities</td>
-                    </tr>
-                    <tr>
-                      <td><strong>Final Deployment Verdict</strong></td>
-                      <td><span className="badge badge-danger">RESTRICTED / CAUTION</span></td>
-                      <td><span className="badge badge-success">APPROVED FOR WORKSTATION</span></td>
-                      <td>MobileNet requires mandatory radiologist over-read</td>
-                    </tr>
-                  </tbody>
-                </table>
+                    <thead>
+                      <tr>
+                        <th>Evaluation Metric</th>
+                        <th>CXR MobileNetV2 (Bedside Cart Edge)</th>
+                        <th>CXR CheXNet DenseNet121 (Hospital Grade)</th>
+                        <th>Clinical Safety Implication</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><strong>Architecture Type</strong></td>
+                        <td>MobileNetV2 Depthwise-Conv</td>
+                        <td>DenseNet-121 Feature Reuse</td>
+                        <td>Portable ICU Cart vs Radiology Workstation</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Model Size / Parameters</strong></td>
+                        <td><span className="status-pass">3.5M Params (8.4 MB)</span></td>
+                        <td><span className="status-fail">7.0M Params (27.7 MB)</span></td>
+                        <td>Battery runtime & low thermal envelope</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Inference Latency (RTX 5060)</strong></td>
+                        <td><span className="status-pass">4.1 ms (240 FPS)</span></td>
+                        <td>12.8 ms (78 FPS)</td>
+                        <td>Instantaneous bedside triage at patient bed</td>
+                      </tr>
+                      <tr>
+                        <td><strong>In-Domain AUC (NIH CXR-14)</strong></td>
+                        <td>74.2%</td>
+                        <td><span className="status-pass">86.8%</span></td>
+                        <td>Baseline consolidation/infiltrate detection</td>
+                      </tr>
+                      <tr>
+                        <td><strong>CR vs DR Contrast Sensitivity</strong></td>
+                        <td><span className="status-fail">42.1% Stability Retained</span></td>
+                        <td><span className="status-pass">78.4% Stability Retained</span></td>
+                        <td>Edge model fails when contrast drops &gt; 15%</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Expected Calibration Error (ECE)</strong></td>
+                        <td><span className="status-fail">10.8% (Borderline Overconfident)</span></td>
+                        <td><span className="status-pass">3.8% (Calibrated Posterior)</span></td>
+                        <td>Overconfidence on ambiguous lung opacities</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Final Deployment Verdict</strong></td>
+                        <td><span className="badge badge-danger">RESTRICTED / CAUTION</span></td>
+                        <td><span className="badge badge-success">APPROVED FOR WORKSTATION</span></td>
+                        <td>MobileNet requires mandatory radiologist over-read</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
