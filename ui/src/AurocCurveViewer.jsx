@@ -243,9 +243,6 @@ export default function AurocCurveViewer({ modality = 'retinal_dr' }) {
           <div className="auroc-title-row">
             <h4 className="auroc-title">Clinical Diagnostic Discrimination (AUROC Curve)</h4>
           </div>
-          <p className="auroc-subtitle">
-            Receiver Operating Characteristic evaluating True Positive Rate (Sensitivity) vs False Positive Rate (1 - Specificity).
-          </p>
         </div>
 
         {/* View Mode Switcher */}
@@ -567,7 +564,7 @@ export default function AurocCurveViewer({ modality = 'retinal_dr' }) {
             </div>
           </div>
 
-          {/* Margin & Regulatory Guidance */}
+          {/* Margin & Discrimination Delta */}
           <div className="auroc-guidance-card">
             <div className="guidance-header">
               <Activity size={14} className="guidance-icon" />
@@ -579,7 +576,7 @@ export default function AurocCurveViewer({ modality = 'retinal_dr' }) {
               {viewMode === 'comparison' ? (
                 <>
                   <span className="highlight-val status-pass">{data.deltaAuc}</span>
-                  <span className="highlight-desc">Server ensemble discrimination advantage</span>
+                  <span className="highlight-desc">Discrimination Delta (AUC)</span>
                 </>
               ) : (
                 <>
@@ -588,7 +585,6 @@ export default function AurocCurveViewer({ modality = 'retinal_dr' }) {
                 </>
               )}
             </div>
-            <p className="guidance-body">{data.commentary}</p>
           </div>
         </div>
       </div>

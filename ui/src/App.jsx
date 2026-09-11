@@ -618,16 +618,12 @@ export default function App() {
             <div className="dossier-hero">
               <div className="dossier-main">
                 <div>
-                  <div className="dossier-eyebrow-row">
-                    <span className="dossier-kicker">REGULATORY AUDIT SPECIFICATION</span>
-                    <span className="dossier-reg-tag">FDA 21 CFR 820 • CDSCO SaMD CLASS C PROTOCOL</span>
-                  </div>
                   <h2 className="dossier-headline">{auditData?.verdict_title || 'Running Initial Audit...'}</h2>
                   <p className="dossier-summary">{auditData?.guardrail_policy}</p>
                   <div className="dossier-model-hash">
-                    <span className="num-tabular">UDI / MODEL ID: {selectedModel}</span>
+                    <span className="num-tabular">Target: {selectedModel}</span>
                     <span>•</span>
-                    <span>COHORT: {auditData?.samples_audited || 6} CLINICAL STRESS BENCHMARKS</span>
+                    <span>Evaluation Cohort: {auditData?.samples_audited || 6} Stress Benchmarks</span>
                   </div>
                 </div>
 
@@ -640,7 +636,7 @@ export default function App() {
                       rel="noreferrer"
                       className="btn btn-secondary"
                     >
-                      <Download size={13} /> Download Regulatory Dossier (PDF)
+                      <Download size={13} /> Download Audit Dossier (PDF)
                     </a>
                   )}
                   <button
@@ -664,38 +660,47 @@ export default function App() {
                 </div>
 
                 <div className="score-submetrics">
-                  <div className="submetric-row">
-                    <span>Optical Robustness</span>
-                    <span className="num-tabular">{auditData?.optical_robustness ?? '28.0'}%</span>
-                  </div>
-                  <div className="submetric-track">
-                    <div
-                      className={`submetric-fill ${(auditData?.optical_robustness ?? 28) < 50 ? 'fail' : (auditData?.optical_robustness ?? 28) < 75 ? 'warn' : 'pass'}`}
-                      style={{ width: `${Math.min(100, Math.max(0, auditData?.optical_robustness ?? 28))}%` }}
-                    />
-                  </div>
+                  {(() => {
+                    const optVal = auditData?.optical_robustness;
+                    const calVal = auditData?.calibration_precision;
+                    const utlVal = auditData?.utility_margin;
+                    return (
+                      <>
+                        <div className="submetric-row">
+                          <span>Optical Robustness</span>
+                          <span className="num-tabular">{optVal !== undefined ? `${optVal}%` : '--'}</span>
+                        </div>
+                        <div className="submetric-track">
+                          <div
+                            className={`submetric-fill ${optVal === undefined ? '' : optVal < 50 ? 'fail' : optVal < 75 ? 'warn' : 'pass'}`}
+                            style={{ width: `${optVal !== undefined ? Math.min(100, Math.max(0, optVal)) : 0}%` }}
+                          />
+                        </div>
 
-                  <div className="submetric-row">
-                    <span>Calibration Precision</span>
-                    <span className="num-tabular">{auditData?.calibration_precision ?? '14.2'}%</span>
-                  </div>
-                  <div className="submetric-track">
-                    <div
-                      className={`submetric-fill ${(auditData?.calibration_precision ?? 14.2) < 50 ? 'fail' : (auditData?.calibration_precision ?? 14.2) < 75 ? 'warn' : 'pass'}`}
-                      style={{ width: `${Math.min(100, Math.max(0, auditData?.calibration_precision ?? 14.2))}%` }}
-                    />
-                  </div>
+                        <div className="submetric-row">
+                          <span>Calibration Precision</span>
+                          <span className="num-tabular">{calVal !== undefined ? `${calVal}%` : '--'}</span>
+                        </div>
+                        <div className="submetric-track">
+                          <div
+                            className={`submetric-fill ${calVal === undefined ? '' : calVal < 50 ? 'fail' : calVal < 75 ? 'warn' : 'pass'}`}
+                            style={{ width: `${calVal !== undefined ? Math.min(100, Math.max(0, calVal)) : 0}%` }}
+                          />
+                        </div>
 
-                  <div className="submetric-row">
-                    <span>Clinical Utility Margin</span>
-                    <span className="num-tabular">{auditData?.utility_margin ?? '36.5'}%</span>
-                  </div>
-                  <div className="submetric-track">
-                    <div
-                      className={`submetric-fill ${(auditData?.utility_margin ?? 36.5) < 50 ? 'fail' : (auditData?.utility_margin ?? 36.5) < 75 ? 'warn' : 'pass'}`}
-                      style={{ width: `${Math.min(100, Math.max(0, auditData?.utility_margin ?? 36.5))}%` }}
-                    />
-                  </div>
+                        <div className="submetric-row">
+                          <span>Clinical Utility Margin</span>
+                          <span className="num-tabular">{utlVal !== undefined ? `${utlVal}%` : '--'}</span>
+                        </div>
+                        <div className="submetric-track">
+                          <div
+                            className={`submetric-fill ${utlVal === undefined ? '' : utlVal < 50 ? 'fail' : utlVal < 75 ? 'warn' : 'pass'}`}
+                            style={{ width: `${utlVal !== undefined ? Math.min(100, Math.max(0, utlVal)) : 0}%` }}
+                          />
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -740,7 +745,7 @@ export default function App() {
                       <span className="bay-val num-tabular">{eceVal !== null ? eceVal : '--'}%</span>
                       <span className="bay-unit">ECE</span>
                     </div>
-                    <span className="bay-desc">95% CI: ±1.8% • ISO 14971 Safety Limit &lt; 5.0%</span>
+                    <span className="bay-desc">Calibration error against ground truth</span>
                   </div>
 
                   <div className="telemetry-bay">
@@ -800,14 +805,13 @@ export default function App() {
             {/* Stress Test Breakdown Table */}
             {(() => {
               const spectrum = getSpectrumRows();
+
               return (
                 <div className="card table-card">
                   <div className="card-header">
                     <div>
                       <h3 className="card-title-text">Stress Degradation Spectrum</h3>
-                      <div className="card-subtitle-text">Empirical hardware perturbation tolerance mapped across {spectrum.length} clinical vectors</div>
                     </div>
-                    <span className="tag">{spectrum.length} Stress Vectors Tested</span>
                   </div>
                   <div className="table-wrapper">
                     <table className="data-table">
@@ -816,21 +820,18 @@ export default function App() {
                           <th>Stress Vector</th>
                           <th>Baseline Level</th>
                           <th>Max Stress Level</th>
-                          <th>Retained Model Stability (95% CI)</th>
+                          <th>Retained Model Stability</th>
                           <th>Clinical Safety Verdict</th>
                         </tr>
                       </thead>
                       <tbody>
                         {spectrum.map((v, idx) => {
-                          const val = Number(v.retained_stability ?? 0);
-                          const ciMargin = 3.5;
-                          const ciLower = Math.max(0, val - ciMargin).toFixed(1);
-                          const ciUpper = Math.min(100, val + ciMargin).toFixed(1);
-                          const isPass = val >= 70;
-                          const isWarn = val >= 40 && val < 70;
-                          const pillCls = isPass ? 'status-pill-pass' : isWarn ? 'status-pill-warn' : 'status-pill-fail';
-                          const pillText = v.verdict || (isPass ? 'PASS • Clinically Resilient' : isWarn ? 'WARN • Marginal Attenuation' : 'FAIL • Sub-threshold Degradation');
-                          const trackCls = isPass ? 'pass' : isWarn ? 'warn' : 'fail';
+                          const val = v.retained_stability !== undefined ? Number(v.retained_stability) : undefined;
+                          const isPass = val !== undefined && val >= 70;
+                          const isWarn = val !== undefined && val >= 40 && val < 70;
+                          const pillCls = val === undefined ? 'status-pill-warn' : isPass ? 'status-pill-pass' : isWarn ? 'status-pill-warn' : 'status-pill-fail';
+                          const pillText = v.verdict || (val === undefined ? 'Evaluating...' : isPass ? 'PASS • Resilient' : isWarn ? 'WARN • Degraded' : 'FAIL • Sub-threshold');
+                          const trackCls = val === undefined ? '' : isPass ? 'pass' : isWarn ? 'warn' : 'fail';
 
                           return (
                             <tr key={idx}>
@@ -840,13 +841,12 @@ export default function App() {
                               <td>
                                 <div className="table-retention-cell">
                                   <div className="retention-val-group">
-                                    <span className="retention-main-num num-tabular">{val}%</span>
-                                    <span className="ci-bounds num-tabular">(95% CI: {ciLower}%–{ciUpper}%)</span>
+                                    <span className="retention-main-num num-tabular">{val !== undefined ? `${val}%` : '--'}</span>
                                   </div>
                                   <div className="retention-mini-track">
                                     <div
                                       className={`retention-mini-fill ${trackCls}`}
-                                      style={{ width: `${Math.min(100, val)}%` }}
+                                      style={{ width: `${val !== undefined ? Math.min(100, val) : 0}%` }}
                                     />
                                   </div>
                                 </div>
@@ -871,13 +871,7 @@ export default function App() {
             <div className="dossier-hero">
               <div className="dossier-main">
                 <div>
-                  <div className="dossier-eyebrow-row">
-                    <span className="dossier-kicker">MULTICENTER STRESS BATTERY</span>
-                  </div>
-                  <h2 className="dossier-headline">Multicenter Cohort Stress-Testing Battery</h2>
-                  <p className="dossier-summary">
-                    Evaluating 60-patient cohort across hardware corruptions, subgroup underdiagnosis, and shortcut learning.
-                  </p>
+                  <h2 className="dossier-headline">Multicenter Cohort Stress Battery</h2>
                   <div className="cohort-meta-strip">
                     <span className="meta-pill">Target: {cohortData?.model_metadata?.name || cohortData?.target_model || selectedModel}</span>
                     <span className="meta-pill">Modality: {cohortData?.modality ? cohortData.modality.toUpperCase() : 'CLINICAL'}</span>
@@ -1003,7 +997,7 @@ export default function App() {
                   </span>
                   <span className="bay-unit">index</span>
                 </div>
-                <span className="bay-desc">Hendrycks &amp; Dietterich (ICLR 2019)</span>
+                <span className="bay-desc">Corruption error across perturbation suite</span>
               </div>
 
               <div className="telemetry-bay">
@@ -1024,7 +1018,7 @@ export default function App() {
                   <span className="bay-unit">FNR</span>
                 </div>
                 <span className="bay-desc">
-                  Stratum: {cohortData?.metrics?.worst_group_benchmarks?.worst_performing_group || '--'} (WILDS 2021)
+                  Stratum: {cohortData?.metrics?.worst_group_benchmarks?.worst_performing_group || '--'}
                 </span>
               </div>
 
@@ -1064,7 +1058,7 @@ export default function App() {
                       : '--'}
                   </span>
                 </div>
-                <span className="bay-desc">Attribute Utility vs Detectability (FDA 2025)</span>
+                <span className="bay-desc">Spurious non-clinical correlation</span>
               </div>
             </div>
 
@@ -1077,7 +1071,6 @@ export default function App() {
                   <div className="card-header">
                     <div>
                       <h3 className="card-title-text">G-AUDIT Shortcut Risk Matrix</h3>
-                      <p className="card-desc" style={{ marginTop: '2px' }}>Drenkow, Petrick [FDA CDRH], Unberath [JHU] (2025)</p>
                     </div>
                   </div>
                   <div className="table-wrapper">
@@ -1118,8 +1111,7 @@ export default function App() {
                 <div className="card table-card">
                   <div className="card-header">
                     <div>
-                      <h3 className="card-title-text">Prevalence Shift &amp; Alert Fatigue Simulator</h3>
-                      <p className="card-desc" style={{ marginTop: '2px' }}>Wong et al. (JAMA 2021) Bayes-Adjusted Collapse</p>
+                      <h3 className="card-title-text">Prevalence Shift &amp; Alert Fatigue</h3>
                     </div>
                   </div>
                   <div className="table-wrapper">
@@ -1176,7 +1168,6 @@ export default function App() {
                   <div className="card-header">
                     <div>
                       <h3 className="card-title-text">Decision Curve Analysis (Net Benefit)</h3>
-                      <p className="card-desc" style={{ marginTop: '2px' }}>Vickers &amp; Elkin (2006) Clinical Utility Boundaries</p>
                     </div>
                   </div>
                   <div className="table-wrapper">
@@ -1233,8 +1224,7 @@ export default function App() {
                 <div className="card">
                   <div className="card-header" style={{ padding: '0 0 12px 0', borderBottom: '1px solid var(--border-subtle)' }}>
                     <div>
-                      <h3 className="card-title-text">Non-Compensatory Hard Safety Vetoes</h3>
-                      <p className="card-desc" style={{ marginTop: '2px' }}>Independent guardrails that override linear aggregate scores</p>
+                      <h3 className="card-title-text">Non-Compensatory Safety Vetoes</h3>
                     </div>
                     <span className="badge badge-danger"><ShieldAlert size={12} /> Active Vetoes</span>
                   </div>
@@ -1245,7 +1235,7 @@ export default function App() {
                         <div key={idx} className="veto-box">
                           <AlertTriangle size={16} className="veto-box-icon" />
                           <div>
-                            <span className="veto-box-title">DEPLOYMENT RESTRICTION #{idx + 1}</span>
+                            <span className="veto-box-title">RESTRICTION #{idx + 1}</span>
                             <p className="veto-box-desc">{contra}</p>
                           </div>
                         </div>
@@ -1267,7 +1257,6 @@ export default function App() {
           <div className="studio-container">
             <div className="studio-sidebar card">
               <h3 className="card-title-text">Stress Parameter Controls</h3>
-              <p className="card-desc">Inject progressive physical perturbations into live candidate model inference.</p>
 
               <div className="form-group">
                 <label className="form-label">Select Test Sample:</label>
@@ -1334,12 +1323,10 @@ export default function App() {
             <div className="studio-viewer card">
               <div className="viewer-header">
                 <div>
-                  <h3>Perturbed Retina vs Model Diagnostic Output</h3>
-                  <span className="viewer-sub">Real-time model response under live sensor noise</span>
+                  <h3>Perturbed Input vs Model Diagnostic Output</h3>
                 </div>
                 <div className="viewer-stats">
                   <span>Latency: <strong>{liveStressResult?.latency_ms ?? '--'} ms</strong></span>
-                  <span>Target Class: <strong>Grade {liveStressResult?.predicted_grade ?? '--'}</strong></span>
                 </div>
               </div>
 
@@ -1410,13 +1397,10 @@ export default function App() {
             <div className="card">
               <div className="card-header">
                 <div>
-                  <h3 className="card-title-text">Discovered Silent Clinical Failures & Discrepancies</h3>
-                  <p className="card-desc">
-                    Cases where candidate models claim high accuracy on paper but fail safety gates due to shortcut learning.
-                  </p>
+                  <h3 className="card-title-text">Silent Clinical Failures &amp; Discrepancies</h3>
                 </div>
                 <span className="badge badge-danger">
-                  {auditData?.discrepancies?.length || 0} Critical Violations Found
+                  {auditData?.discrepancies?.length || 0} Violations Found
                 </span>
               </div>
 
@@ -1432,7 +1416,6 @@ export default function App() {
                       <div className="comparison-box model-side">
                         <span className="box-title">Candidate Model Classification</span>
                         <span className="box-grade">Grade {disc.predicted_grade}</span>
-                        <span className="box-sub">Predicted normal retina (missed referral)</span>
                       </div>
 
                       <div className="comparison-divider">vs</div>
@@ -1461,10 +1444,7 @@ export default function App() {
             <div className="card">
               <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                  <h3 className="card-title-text">Model-to-Model Clinical Benchmarking</h3>
-                  <p className="card-desc">
-                    Side-by-side deployment audit comparing Mobile Edge architectures vs Heavyweight Hospital Server models.
-                  </p>
+                  <h3 className="card-title-text">Model Comparison</h3>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
@@ -1495,7 +1475,6 @@ export default function App() {
                         <th>Evaluation Metric</th>
                         <th>DR Mobile LCNet (Edge)</th>
                         <th>DR ResNet Teacher (Server)</th>
-                        <th>Clinical Safety Implication</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1503,43 +1482,36 @@ export default function App() {
                         <td><strong>Architecture Type</strong></td>
                         <td>PP-LCNet + MSAG Attention</td>
                         <td>ResNet18 Deep Ensemble</td>
-                        <td>Edge-efficiency vs Expressive capacity</td>
                       </tr>
                       <tr>
                         <td><strong>Model Size / Parameters</strong></td>
                         <td><span className="status-pass">7.6M Params (12.7 MB)</span></td>
                         <td><span className="status-fail">11.2M Params (44.6 MB)</span></td>
-                        <td>Mobile memory footprint feasibility</td>
                       </tr>
                       <tr>
-                        <td><strong>Inference Latency (RTX 5060)</strong></td>
+                        <td><strong>Inference Latency</strong></td>
                         <td><span className="status-pass">6.8 ms (146 FPS)</span></td>
                         <td>14.2 ms (70 FPS)</td>
-                        <td>Real-time technician interactive feedback</td>
                       </tr>
                       <tr>
-                        <td><strong>In-Domain AUC (EyePACS)</strong></td>
+                        <td><strong>In-Domain AUC</strong></td>
                         <td>92.8%</td>
                         <td><span className="status-pass">95.4%</span></td>
-                        <td>Laboratory performance on clean inputs</td>
                       </tr>
                       <tr>
                         <td><strong>Defocus Noise Resilience</strong></td>
                         <td><span className="status-fail">28.0% Stability Retained</span></td>
                         <td><span className="status-pass">64.5% Stability Retained</span></td>
-                        <td>Teacher representation resists localized blur</td>
                       </tr>
                       <tr>
                         <td><strong>Expected Calibration Error (ECE)</strong></td>
                         <td><span className="status-fail">18.4% (Overconfident)</span></td>
                         <td><span className="status-pass">4.2% (Well-calibrated)</span></td>
-                        <td>Student network requires temperature scaling</td>
                       </tr>
                       <tr>
                         <td><strong>Final Deployment Verdict</strong></td>
                         <td><span className="badge badge-warning">CONDITIONAL PASS</span></td>
                         <td><span className="badge badge-success">APPROVED FOR GPU SERVER</span></td>
-                        <td>DR Mobile LCNet requires upstream hardware IQA gate</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1552,7 +1524,6 @@ export default function App() {
                         <th>Evaluation Metric</th>
                         <th>CXR MobileNetV2 (Bedside Cart Edge)</th>
                         <th>CXR CheXNet DenseNet121 (Hospital Grade)</th>
-                        <th>Clinical Safety Implication</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1560,43 +1531,36 @@ export default function App() {
                         <td><strong>Architecture Type</strong></td>
                         <td>MobileNetV2 Depthwise-Conv</td>
                         <td>DenseNet-121 Feature Reuse</td>
-                        <td>Portable ICU Cart vs Radiology Workstation</td>
                       </tr>
                       <tr>
                         <td><strong>Model Size / Parameters</strong></td>
                         <td><span className="status-pass">3.5M Params (8.4 MB)</span></td>
                         <td><span className="status-fail">7.0M Params (27.7 MB)</span></td>
-                        <td>Battery runtime & low thermal envelope</td>
                       </tr>
                       <tr>
-                        <td><strong>Inference Latency (RTX 5060)</strong></td>
+                        <td><strong>Inference Latency</strong></td>
                         <td><span className="status-pass">4.1 ms (240 FPS)</span></td>
                         <td>12.8 ms (78 FPS)</td>
-                        <td>Instantaneous bedside triage at patient bed</td>
                       </tr>
                       <tr>
-                        <td><strong>In-Domain AUC (NIH CXR-14)</strong></td>
+                        <td><strong>In-Domain AUC</strong></td>
                         <td>74.2%</td>
                         <td><span className="status-pass">86.8%</span></td>
-                        <td>Baseline consolidation/infiltrate detection</td>
                       </tr>
                       <tr>
                         <td><strong>CR vs DR Contrast Sensitivity</strong></td>
                         <td><span className="status-fail">42.1% Stability Retained</span></td>
                         <td><span className="status-pass">78.4% Stability Retained</span></td>
-                        <td>Edge model fails when contrast drops &gt; 15%</td>
                       </tr>
                       <tr>
                         <td><strong>Expected Calibration Error (ECE)</strong></td>
                         <td><span className="status-fail">10.8% (Borderline Overconfident)</span></td>
                         <td><span className="status-pass">3.8% (Calibrated Posterior)</span></td>
-                        <td>Overconfidence on ambiguous lung opacities</td>
                       </tr>
                       <tr>
                         <td><strong>Final Deployment Verdict</strong></td>
                         <td><span className="badge badge-danger">RESTRICTED / CAUTION</span></td>
                         <td><span className="badge badge-success">APPROVED FOR WORKSTATION</span></td>
-                        <td>MobileNet requires mandatory radiologist over-read</td>
                       </tr>
                     </tbody>
                   </table>
