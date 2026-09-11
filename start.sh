@@ -58,7 +58,7 @@ case "$ACTION" in
         fi
 
         echo "Starting FastAPI Audit Server (Port 8000)..."
-        run_cmd "python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000" &
+        run_cmd "python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload" &
         BACKEND_PID=$!
 
         echo "Starting TrustCheck Web UI (Port 5173)..."
