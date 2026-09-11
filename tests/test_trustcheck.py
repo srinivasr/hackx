@@ -71,7 +71,7 @@ def test_silent_failure_detection():
 
 
 def test_end_to_end_audit_and_pdf(dummy_image, tmp_path):
-    model_path = "assets/models/dr_retinal_lcnet_edge.onnx"
+    model_path = "assets/models/retinal_dr/dr_retinal_lcnet_edge.onnx"
     if not os.path.exists(model_path):
         pytest.skip("Model not found in assets.")
 

@@ -100,6 +100,8 @@ export default function App() {
 
   const isCXR = (mId) => mId === 'cxr_chexnet' || mId === 'cxr_mobilenet_edge';
   const isNLP = (mId) => mId === 'nlp_bioclinicalbert' || mId === 'nlp_pubmedbert';
+  const isDerm = (mId) => mId === 'derm_efficientnet_melanoma' || mId === 'derm_resnet_reference';
+  const isPath = (mId) => mId === 'path_mobilenet_pcam' || mId === 'path_densenet_wsi';
 
   const getSpectrumRows = () => {
     if (!auditData) return [];
@@ -121,33 +123,33 @@ export default function App() {
 
     return [
       {
-        vector_name: isCXR(selectedModel) ? 'Thoracic Motion Blur' : isNLP(selectedModel) ? 'OCR Typographical Noise' : 'Defocus / Motion Blur',
-        min_param: isCXR(selectedModel) ? 'Kernel = 0 px' : isNLP(selectedModel) ? '0% Typo Noise' : 'σ = 0.0',
-        max_param: isCXR(selectedModel) ? 'Kernel = 21 px (Tremor)' : isNLP(selectedModel) ? '42% Char Swaps' : 'σ = 6.0 (Severe movement)',
+        vector_name: isCXR(selectedModel) ? 'Thoracic Motion Blur' : isNLP(selectedModel) ? 'OCR Typographical Noise' : isDerm(selectedModel) ? 'Handheld Tremor Defocus' : isPath(selectedModel) ? 'WSI Stage Focal Defocus' : 'Defocus / Motion Blur',
+        min_param: isCXR(selectedModel) ? 'Kernel = 0 px' : isNLP(selectedModel) ? '0% Typo Noise' : isDerm(selectedModel) ? 'Contact Lens Fixed' : isPath(selectedModel) ? 'Focal Plane 0 μm' : 'σ = 0.0',
+        max_param: isCXR(selectedModel) ? 'Kernel = 21 px (Tremor)' : isNLP(selectedModel) ? '42% Char Swaps' : isDerm(selectedModel) ? 'Kernel = 23 px' : isPath(selectedModel) ? 'Out-of-focus 21 px' : 'σ = 6.0 (Severe movement)',
         retained_stability: blurStab,
         status: blurStab !== undefined ? getStatus(blurStab) : 'warn',
         verdict: blurStab !== undefined ? getVerdict(blurStab) : 'Pending evaluation',
       },
       {
-        vector_name: isCXR(selectedModel) ? 'CR/DR Contrast Attenuation' : isNLP(selectedModel) ? 'Medical Abbreviation Density' : 'Flash / Illumination Drop',
-        min_param: isCXR(selectedModel) ? '100% Dynamic Range' : isNLP(selectedModel) ? 'Standard Clinical Text' : '100% Brightness',
-        max_param: isCXR(selectedModel) ? '-75% Underexposure' : isNLP(selectedModel) ? '80% Physician Shorthand' : '-80% (Undilated pupil)',
+        vector_name: isCXR(selectedModel) ? 'CR/DR Contrast Attenuation' : isNLP(selectedModel) ? 'Medical Abbreviation Density' : isDerm(selectedModel) ? 'Peripheral Optical Vignetting' : isPath(selectedModel) ? 'H&E Stain Batch Variability' : 'Flash / Illumination Drop',
+        min_param: isCXR(selectedModel) ? '100% Dynamic Range' : isNLP(selectedModel) ? 'Standard Clinical Text' : isDerm(selectedModel) ? 'Uniform Field' : isPath(selectedModel) ? 'Calibrated Histology pH' : '100% Brightness',
+        max_param: isCXR(selectedModel) ? '-75% Underexposure' : isNLP(selectedModel) ? '80% Physician Shorthand' : isDerm(selectedModel) ? '-80% Rim Falloff' : isPath(selectedModel) ? 'Severe Chemical Shift' : '-80% (Undilated pupil)',
         retained_stability: illumStab,
         status: illumStab !== undefined ? getStatus(illumStab) : 'warn',
         verdict: illumStab !== undefined ? getVerdict(illumStab) : 'Pending evaluation',
       },
       {
-        vector_name: isCXR(selectedModel) ? 'Quantum Poisson Shot Noise' : isNLP(selectedModel) ? 'Hasty Note Truncation' : 'Corneal Glare Reflection',
-        min_param: isCXR(selectedModel) ? 'High-Dose Photons' : isNLP(selectedModel) ? '100% Complete Narrative' : '0.00',
-        max_param: isCXR(selectedModel) ? 'Low-Dose Scatter Noise' : isNLP(selectedModel) ? '40% Length (Cutoff)' : '0.95 (Corneal Whiteout)',
+        vector_name: isCXR(selectedModel) ? 'Quantum Poisson Shot Noise' : isNLP(selectedModel) ? 'Hasty Note Truncation' : isDerm(selectedModel) ? 'Dermatoscope Specular Glare' : isPath(selectedModel) ? 'Microtome Section Folding' : 'Corneal Glare Reflection',
+        min_param: isCXR(selectedModel) ? 'High-Dose Photons' : isNLP(selectedModel) ? '100% Complete Narrative' : isDerm(selectedModel) ? 'Cross-Polarized' : isPath(selectedModel) ? 'Intact Tissue Section' : '0.00',
+        max_param: isCXR(selectedModel) ? 'Low-Dose Scatter Noise' : isNLP(selectedModel) ? '40% Length (Cutoff)' : isDerm(selectedModel) ? 'Immersion Fluid Flare' : isPath(selectedModel) ? '5 Compression Folds' : '0.95 (Corneal Whiteout)',
         retained_stability: glareStab,
         status: glareStab !== undefined ? getStatus(glareStab) : 'warn',
         verdict: glareStab !== undefined ? getVerdict(glareStab) : 'Pending evaluation',
       },
       {
-        vector_name: isCXR(selectedModel) ? 'Matrix Resolution Downsampling' : isNLP(selectedModel) ? 'Negation Assertion Stress' : 'Sensor Resolution Downsampling',
-        min_param: isCXR(selectedModel) ? '384×384 px' : isNLP(selectedModel) ? 'Intact Assertions' : '384×384 px',
-        max_param: isCXR(selectedModel) ? '96×96 px (Mobile cart)' : isNLP(selectedModel) ? 'NegEx Semantic Inversion' : '96×96 px (Extreme drop)',
+        vector_name: isCXR(selectedModel) ? 'Matrix Resolution Downsampling' : isNLP(selectedModel) ? 'Negation Assertion Stress' : isDerm(selectedModel) ? 'Mobile Dermatoscope Downsampling' : isPath(selectedModel) ? 'Optical Magnification Scaling' : 'Sensor Resolution Downsampling',
+        min_param: isCXR(selectedModel) ? '384×384 px' : isNLP(selectedModel) ? 'Intact Assertions' : isDerm(selectedModel) ? '384×384 px Native' : isPath(selectedModel) ? '40x Native Lens' : '384×384 px',
+        max_param: isCXR(selectedModel) ? '96×96 px (Mobile cart)' : isNLP(selectedModel) ? 'NegEx Semantic Inversion' : isDerm(selectedModel) ? '96×96 px (Tele-derm)' : isPath(selectedModel) ? '10x Scouting View' : '96×96 px (Extreme drop)',
         retained_stability: resStab,
         status: resStab !== undefined ? getStatus(resStab) : 'warn',
         verdict: resStab !== undefined ? getVerdict(resStab) : 'Pending evaluation',
@@ -162,22 +164,28 @@ export default function App() {
     // Sync optical stress studio sample key with modality
     if (isCXR(newModelId) && !sampleKey.startsWith('scan_')) {
       setSampleKey('scan_0001');
-    } else if (!isCXR(newModelId) && sampleKey.startsWith('scan_')) {
+    } else if (isDerm(newModelId) && !sampleKey.startsWith('lesion_')) {
+      setSampleKey('lesion_0001');
+    } else if (isPath(newModelId) && !sampleKey.startsWith('wsi_')) {
+      setSampleKey('wsi_0001');
+    } else if (!isCXR(newModelId) && !isDerm(newModelId) && !isPath(newModelId) && (sampleKey.startsWith('scan_') || sampleKey.startsWith('lesion_') || sampleKey.startsWith('wsi_'))) {
       setSampleKey('sample_clinical_pass');
     }
 
     // Intelligent auto-pairing with recommended clinical dataset
     let newDatasetId = selectedDataset;
-    if (isCXR(newModelId) && selectedDataset !== 'chest_xray_60') {
+    if (isCXR(newModelId)) {
       newDatasetId = 'chest_xray_60';
-      setSelectedDataset('chest_xray_60');
-    } else if (isNLP(newModelId) && selectedDataset !== 'clinical_notes_mimic_60') {
+    } else if (isNLP(newModelId)) {
       newDatasetId = 'clinical_notes_mimic_60';
-      setSelectedDataset('clinical_notes_mimic_60');
-    } else if (!isCXR(newModelId) && !isNLP(newModelId) && (selectedDataset === 'chest_xray_60' || selectedDataset === 'clinical_notes_mimic_60')) {
+    } else if (isDerm(newModelId)) {
+      newDatasetId = 'dermatology_isic_60';
+    } else if (isPath(newModelId)) {
+      newDatasetId = 'histopathology_pcam_60';
+    } else {
       newDatasetId = 'retinal_dr_60';
-      setSelectedDataset('retinal_dr_60');
     }
+    setSelectedDataset(newDatasetId);
     setCohortData(completedCohortAudits[`${newModelId}_${newDatasetId}`] || null);
   };
 
@@ -187,19 +195,21 @@ export default function App() {
     let newModelId = selectedModel;
     if (newDatasetId === 'chest_xray_60' && !isCXR(selectedModel)) {
       newModelId = 'cxr_chexnet';
-      setSelectedModel('cxr_chexnet');
       setSampleKey('scan_0001');
-      setAuditData(completedAudits['cxr_chexnet'] || null);
-    } else if (newDatasetId === 'clinical_notes_mimic_60' && !isNLP(selectedModel)) {
-      newModelId = 'nlp_bioclinicalbert';
-      setSelectedModel('nlp_bioclinicalbert');
-      setAuditData(completedAudits['nlp_bioclinicalbert'] || null);
-    } else if (newDatasetId === 'retinal_dr_60' && (isCXR(selectedModel) || isNLP(selectedModel))) {
+    } else if (newDatasetId.includes('clinical_notes') || newDatasetId.includes('mednli')) {
+      if (!isNLP(selectedModel)) newModelId = 'nlp_bioclinicalbert';
+    } else if (newDatasetId === 'dermatology_isic_60' && !isDerm(selectedModel)) {
+      newModelId = 'derm_efficientnet_melanoma';
+      setSampleKey('lesion_0001');
+    } else if (newDatasetId === 'histopathology_pcam_60' && !isPath(selectedModel)) {
+      newModelId = 'path_mobilenet_pcam';
+      setSampleKey('wsi_0001');
+    } else if (newDatasetId === 'retinal_dr_60' && (isCXR(selectedModel) || isNLP(selectedModel) || isDerm(selectedModel) || isPath(selectedModel))) {
       newModelId = 'dr_lcnet_edge';
-      setSelectedModel('dr_lcnet_edge');
       setSampleKey('sample_clinical_pass');
-      setAuditData(completedAudits['dr_lcnet_edge'] || null);
     }
+    setSelectedModel(newModelId);
+    setAuditData(completedAudits[newModelId] || null);
     setCohortData(completedCohortAudits[`${newModelId}_${newDatasetId}`] || null);
   };
 
@@ -415,7 +425,7 @@ export default function App() {
             <div className="context-label-row">
               <span className="context-label">EVALUATION TARGET</span>
               <span className="context-modality-pill">
-                {selectedModel.startsWith('dr') ? 'DR Fundus' : selectedModel.startsWith('nlp') ? 'Clinical NLP' : 'CXR Chest'}
+                {selectedModel.startsWith('dr') ? 'DR Fundus' : selectedModel.startsWith('derm') ? 'Dermatology' : selectedModel.startsWith('path') ? 'Histopathology' : selectedModel.startsWith('nlp') ? 'Clinical NLP' : 'CXR Chest'}
               </span>
             </div>
             <div className="sidebar-select-wrap">
@@ -562,7 +572,7 @@ export default function App() {
             <div className="header-breadcrumbs">
               <span className="crumb-root">TrustCheck</span>
               <span className="crumb-sep">/</span>
-              <span className="crumb-segment">{selectedModel.startsWith('dr') ? 'Retinal Fundus' : 'Chest Radiography'}</span>
+              <span className="crumb-segment">{selectedModel.startsWith('dr') ? 'Retinal Fundus' : selectedModel.startsWith('derm') ? 'Dermatology' : selectedModel.startsWith('path') ? 'Digital Pathology' : selectedModel.startsWith('nlp') ? 'Clinical NLP' : 'Chest Radiography'}</span>
               <span className="crumb-sep">/</span>
               <span className="crumb-active">{selectedModel}</span>
             </div>
@@ -2042,6 +2052,9 @@ export default function App() {
                     >
                       <option value="retinal_fundus">Ophthalmology (Retinal Fundus)</option>
                       <option value="chest_xray">Pulmonology (Chest Radiography)</option>
+                      <option value="dermatology_dermoscopy">Dermatology (Dermoscopy & Melanoma)</option>
+                      <option value="digital_pathology">Digital Pathology (Whole Slide Imaging WSI)</option>
+                      <option value="clinical_nlp">Clinical NLP (EHR Notes & Discharge Summaries)</option>
                     </select>
                   </div>
                 </div>
@@ -2098,7 +2111,7 @@ export default function App() {
                   <label className="form-label">Absolute or Relative Local File Path:</label>
                   <input
                     type="text"
-                    placeholder="e.g. assets/models/dr_retinal_resnet_teacher.onnx"
+                    placeholder="e.g. assets/models/retinal_dr/dr_retinal_resnet_teacher.onnx"
                     value={localPath}
                     onChange={(e) => setLocalPath(e.target.value)}
                     className="form-input"
@@ -2129,6 +2142,9 @@ export default function App() {
                     >
                       <option value="retinal_fundus">Ophthalmology (Retinal Fundus)</option>
                       <option value="chest_xray">Pulmonology (Chest Radiography)</option>
+                      <option value="dermatology_dermoscopy">Dermatology (Dermoscopy & Melanoma)</option>
+                      <option value="digital_pathology">Digital Pathology (Whole Slide Imaging WSI)</option>
+                      <option value="clinical_nlp">Clinical NLP (EHR Notes & Discharge Summaries)</option>
                     </select>
                   </div>
                 </div>
@@ -2194,6 +2210,9 @@ export default function App() {
                     >
                       <option value="retinal_fundus">Ophthalmology (Retinal Fundus)</option>
                       <option value="chest_xray">Pulmonology (Chest Radiography)</option>
+                      <option value="dermatology_dermoscopy">Dermatology (Dermoscopy & Melanoma)</option>
+                      <option value="digital_pathology">Digital Pathology (Whole Slide Imaging WSI)</option>
+                      <option value="clinical_nlp">Clinical NLP (EHR Notes & Discharge Summaries)</option>
                     </select>
                   </div>
                 </div>

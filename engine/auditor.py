@@ -442,6 +442,222 @@ def run_full_model_audit(
             "verdict": v4_info["verdict"],
         })
 
+    elif modality in ["dermatology_dermoscopy", "dermatology", "dermoscopy"]:
+        from engines.modality_suites import DermatologySuite
+        # Vector 1: Specular Glare / Immersion Reflection
+        v1_name = "Dermatoscope Specular Glare"
+        v1_min = "Polarized Cross-Filter"
+        v1_max = "Aperture Fluid Flare (Sev 5)"
+        for s in [1, 2, 3, 4, 5]:
+            perturbed = DermatologySuite.apply_specular_glare(ref_img, severity=s)
+            p_res = evaluator.infer(perturbed)
+            stab = compute_model_stability(p_res, base_res)
+            stress_tests["glare_ladder"].append({
+                "param": f"sev={s}",
+                "severity": round(s / 5.0 * 100, 1),
+                "predicted_grade": p_res["predicted_grade"],
+                "confidence": p_res["confidence"],
+                "retained_stability": stab,
+            })
+        final_stab = stress_tests["glare_ladder"][-1]["retained_stability"]
+        v1_info = evaluate_spectrum_verdict(final_stab, v1_name)
+        stress_spectrum.append({
+            "vector_name": v1_name,
+            "min_param": v1_min,
+            "max_param": v1_max,
+            "retained_stability": final_stab,
+            "status": v1_info["status"],
+            "verdict": v1_info["verdict"],
+        })
+
+        # Vector 2: Handheld Tremor Defocus
+        v2_name = "Handheld Tremor Defocus"
+        v2_min = "Fixed Contact Lens"
+        v2_max = "Kernel = 23 px (Severe shake)"
+        for s in [1, 2, 3, 4, 5]:
+            perturbed = DermatologySuite.apply_handheld_defocus(ref_img, severity=s)
+            p_res = evaluator.infer(perturbed)
+            stab = compute_model_stability(p_res, base_res)
+            stress_tests["blur_ladder"].append({
+                "param": f"sev={s}",
+                "severity": round(s / 5.0 * 100, 1),
+                "predicted_grade": p_res["predicted_grade"],
+                "confidence": p_res["confidence"],
+                "retained_stability": stab,
+            })
+        final_stab = stress_tests["blur_ladder"][-1]["retained_stability"]
+        v2_info = evaluate_spectrum_verdict(final_stab, v2_name)
+        stress_spectrum.append({
+            "vector_name": v2_name,
+            "min_param": v2_min,
+            "max_param": v2_max,
+            "retained_stability": final_stab,
+            "status": v2_info["status"],
+            "verdict": v2_info["verdict"],
+        })
+
+        # Vector 3: Peripheral Optical Vignetting
+        v3_name = "Peripheral Optical Vignetting"
+        v3_min = "Uniform Illumination"
+        v3_max = "-80% (Cylinder Rim Falloff)"
+        for s in [1, 2, 3, 4, 5]:
+            perturbed = DermatologySuite.apply_peripheral_vignetting(ref_img, severity=s)
+            p_res = evaluator.infer(perturbed)
+            stab = compute_model_stability(p_res, base_res)
+            stress_tests["illumination_ladder"].append({
+                "param": f"sev={s}",
+                "severity": round(s / 5.0 * 100, 1),
+                "predicted_grade": p_res["predicted_grade"],
+                "confidence": p_res["confidence"],
+                "retained_stability": stab,
+            })
+        final_stab = stress_tests["illumination_ladder"][-1]["retained_stability"]
+        v3_info = evaluate_spectrum_verdict(final_stab, v3_name)
+        stress_spectrum.append({
+            "vector_name": v3_name,
+            "min_param": v3_min,
+            "max_param": v3_max,
+            "retained_stability": final_stab,
+            "status": v3_info["status"],
+            "verdict": v3_info["verdict"],
+        })
+
+        # Vector 4: Sensor Resolution Scaling
+        v4_name = "Mobile Dermatoscope Downsampling"
+        v4_min = "384×384 px Native"
+        v4_max = "96×96 px (Low-res tele-derm)"
+        for dim in [384, 288, 224, 160, 96]:
+            perturbed = apply_resolution_scaling(ref_img, dim)
+            p_res = evaluator.infer(perturbed)
+            stab = compute_model_stability(p_res, base_res)
+            scaled_res = f"{dim}x{dim}"
+            res_loss_pct = round((1.0 - (dim / 384.0)) * 100, 1)
+            stress_tests["resolution_ladder"].append({
+                "param": scaled_res,
+                "severity": res_loss_pct,
+                "predicted_grade": p_res["predicted_grade"],
+                "confidence": p_res["confidence"],
+                "retained_stability": stab,
+            })
+        final_stab = stress_tests["resolution_ladder"][-1]["retained_stability"]
+        v4_info = evaluate_spectrum_verdict(final_stab, v4_name)
+        stress_spectrum.append({
+            "vector_name": v4_name,
+            "min_param": v4_min,
+            "max_param": v4_max,
+            "retained_stability": final_stab,
+            "status": v4_info["status"],
+            "verdict": v4_info["verdict"],
+        })
+
+    elif modality in ["digital_pathology", "histopathology", "pathology"]:
+        from engines.modality_suites import HistopathologySuite
+        # Vector 1: H&E Staining Protocol Drift
+        v1_name = "H&E Stain Batch Variability"
+        v1_min = "Calibrated Histology pH"
+        v1_max = "Severe Chemical Batch Shift"
+        for s in [1, 2, 3, 4, 5]:
+            perturbed = HistopathologySuite.apply_he_stain_variability(ref_img, severity=s)
+            p_res = evaluator.infer(perturbed)
+            stab = compute_model_stability(p_res, base_res)
+            stress_tests["illumination_ladder"].append({
+                "param": f"sev={s}",
+                "severity": round(s / 5.0 * 100, 1),
+                "predicted_grade": p_res["predicted_grade"],
+                "confidence": p_res["confidence"],
+                "retained_stability": stab,
+            })
+        final_stab = stress_tests["illumination_ladder"][-1]["retained_stability"]
+        v1_info = evaluate_spectrum_verdict(final_stab, v1_name)
+        stress_spectrum.append({
+            "vector_name": v1_name,
+            "min_param": v1_min,
+            "max_param": v1_max,
+            "retained_stability": final_stab,
+            "status": v1_info["status"],
+            "verdict": v1_info["verdict"],
+        })
+
+        # Vector 2: WSI Scanner Stage Focal Defocus
+        v2_name = "WSI Automated Stage Z-Defocus"
+        v2_min = "Focal Plane = 0 μm"
+        v2_max = "Out-of-Focus (k=21 px)"
+        for s in [1, 2, 3, 4, 5]:
+            perturbed = HistopathologySuite.apply_wsi_defocus(ref_img, severity=s)
+            p_res = evaluator.infer(perturbed)
+            stab = compute_model_stability(p_res, base_res)
+            stress_tests["blur_ladder"].append({
+                "param": f"sev={s}",
+                "severity": round(s / 5.0 * 100, 1),
+                "predicted_grade": p_res["predicted_grade"],
+                "confidence": p_res["confidence"],
+                "retained_stability": stab,
+            })
+        final_stab = stress_tests["blur_ladder"][-1]["retained_stability"]
+        v2_info = evaluate_spectrum_verdict(final_stab, v2_name)
+        stress_spectrum.append({
+            "vector_name": v2_name,
+            "min_param": v2_min,
+            "max_param": v2_max,
+            "retained_stability": final_stab,
+            "status": v2_info["status"],
+            "verdict": v2_info["verdict"],
+        })
+
+        # Vector 3: Microtome Section Folding
+        v3_name = "Microtome Tissue Compression & Folding"
+        v3_min = "Intact Section"
+        v3_max = "5 Severe Folding Wrinkles"
+        for s in [1, 2, 3, 4, 5]:
+            perturbed = HistopathologySuite.apply_microtome_compression(ref_img, severity=s)
+            p_res = evaluator.infer(perturbed)
+            stab = compute_model_stability(p_res, base_res)
+            stress_tests["glare_ladder"].append({
+                "param": f"folds={s}",
+                "severity": round(s / 5.0 * 100, 1),
+                "predicted_grade": p_res["predicted_grade"],
+                "confidence": p_res["confidence"],
+                "retained_stability": stab,
+            })
+        final_stab = stress_tests["glare_ladder"][-1]["retained_stability"]
+        v3_info = evaluate_spectrum_verdict(final_stab, v3_name)
+        stress_spectrum.append({
+            "vector_name": v3_name,
+            "min_param": v3_min,
+            "max_param": v3_max,
+            "retained_stability": final_stab,
+            "status": v3_info["status"],
+            "verdict": v3_info["verdict"],
+        })
+
+        # Vector 4: Digital WSI Downsampling
+        v4_name = "Optical Magnification Scaling"
+        v4_min = "40x Native Oil Lens"
+        v4_max = "10x Scouting View (96px)"
+        for dim in [384, 288, 224, 160, 96]:
+            perturbed = apply_resolution_scaling(ref_img, dim)
+            p_res = evaluator.infer(perturbed)
+            stab = compute_model_stability(p_res, base_res)
+            scaled_res = f"{dim}x{dim}"
+            res_loss_pct = round((1.0 - (dim / 384.0)) * 100, 1)
+            stress_tests["resolution_ladder"].append({
+                "param": scaled_res,
+                "severity": res_loss_pct,
+                "predicted_grade": p_res["predicted_grade"],
+                "confidence": p_res["confidence"],
+                "retained_stability": stab,
+            })
+        final_stab = stress_tests["resolution_ladder"][-1]["retained_stability"]
+        v4_info = evaluate_spectrum_verdict(final_stab, v4_name)
+        stress_spectrum.append({
+            "vector_name": v4_name,
+            "min_param": v4_min,
+            "max_param": v4_max,
+            "retained_stability": final_stab,
+            "status": v4_info["status"],
+            "verdict": v4_info["verdict"],
+        })
+
     else:
         # Default: Retinal Fundus (Ophthalmology)
         # Vector 1: Defocus / Motion Blur

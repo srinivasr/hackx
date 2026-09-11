@@ -258,7 +258,7 @@ def main():
     parser.add_argument("--metadata", type=str, default="data/sample_metadata.csv", help="Cohort metadata CSV path")
     parser.add_argument("--output-dir", type=str, default="output/audit_run_01", help="Directory for telemetry JSON and PDF dossier")
     parser.add_argument("--config", type=str, default="config/audit_thresholds.yaml", help="Audit thresholds configuration YAML")
-    parser.add_argument("--modality", type=str, default="chest_xray", choices=["chest_xray", "retinal_fundus", "tabular_ehr", "clinical_nlp", "clinical_text"], help="Clinical Modality Perturbation Suite")
+    parser.add_argument("--modality", type=str, default="chest_xray", choices=["chest_xray", "retinal_fundus", "tabular_ehr", "clinical_nlp", "clinical_text", "dermatology_dermoscopy", "dermatology", "digital_pathology", "histopathology"], help="Clinical Modality Perturbation Suite")
 
     args = parser.parse_args()
     try:

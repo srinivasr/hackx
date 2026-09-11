@@ -49,7 +49,7 @@ case "$ACTION" in
         ;;
     2)
         echo "Executing HLT-08 Pre-Deployment Audit Battery (CLI)..."
-        run_cmd "python3 audit_runner.py --model assets/models/cxr_chexnet_densenet121.onnx --metadata data/sample_metadata.csv --output-dir output/audit_run_01"
+        run_cmd "python3 audit_runner.py --model assets/models/chest_xray/cxr_chexnet_densenet121.onnx --metadata data/sample_metadata.csv --output-dir output/audit_run_01"
         ;;
     3)
         if [ ! -d "$SCRIPT_DIR/ui/node_modules" ]; then
@@ -75,7 +75,7 @@ import glob, cv2
 from engine.auditor import CandidateModelEvaluator, run_full_model_audit
 from backend.certificate_gen import generate_deployment_certificate
 
-evaluator = CandidateModelEvaluator('assets/models/dr_retinal_lcnet_edge.onnx', 'Diabetic-Retinopathy-LCNet')
+evaluator = CandidateModelEvaluator('assets/models/retinal_dr/dr_retinal_lcnet_edge.onnx', 'Diabetic-Retinopathy-LCNet')
 samples = {f.split('/')[-1].split('.')[0]: cv2.imread(f) for f in glob.glob('assets/test_samples/*.jpg')}
 audit = run_full_model_audit(evaluator, samples)
 generate_deployment_certificate(audit, 'outputs/TrustCheck_Certificate_Sample.pdf')
@@ -88,22 +88,30 @@ print('Certificate generated at outputs/TrustCheck_Certificate_Sample.pdf')
         ;;
     6)
         echo "Executing Diabetic Retinopathy (Retinal Fundus) Audit Battery..."
-        run_cmd "python3 audit_runner.py --model assets/models/dr_retinal_lcnet_edge.onnx --metadata data/sample_retinal_metadata.csv --modality retinal_fundus --output-dir output/audit_run_retinal_dr"
+        run_cmd "python3 audit_runner.py --model assets/models/retinal_dr/dr_retinal_lcnet_edge.onnx --metadata data/sample_retinal_metadata.csv --modality retinal_fundus --output-dir output/audit_run_retinal_dr"
         ;;
     7)
         echo "Executing Chest Radiography (Portable Bedside MobileNet) Audit Battery..."
-        run_cmd "python3 audit_runner.py --model assets/models/cxr_mobilenet_edge.onnx --metadata data/sample_metadata.csv --modality chest_xray --output-dir outputs/audit_run_cxr_mobilenet_edge"
+        run_cmd "python3 audit_runner.py --model assets/models/chest_xray/cxr_mobilenet_edge.onnx --metadata data/sample_metadata.csv --modality chest_xray --output-dir outputs/audit_run_cxr_mobilenet_edge"
         ;;
     8)
         echo "Executing Clinical NLP (Bio_ClinicalBERT on MIMIC-IV Notes) Audit Battery..."
-        run_cmd "python3 audit_runner.py --model assets/models/nlp_bioclinicalbert_risk.onnx --metadata data/sample_clinical_notes_metadata.csv --modality clinical_nlp --output-dir outputs/audit_run_nlp_clinical_bert"
+        run_cmd "python3 audit_runner.py --model assets/models/clinical_nlp/nlp_bioclinicalbert_risk.onnx --metadata data/sample_clinical_notes_metadata.csv --modality clinical_nlp --output-dir outputs/audit_run_nlp_clinical_bert"
         ;;
     9)
         echo "Executing Clinical NLP (PubMedBERT on MedNLI Triage) Audit Battery..."
-        run_cmd "python3 audit_runner.py --model assets/models/nlp_pubmedbert_diagnostic.onnx --metadata data/sample_mednli_metadata.csv --modality clinical_nlp --output-dir outputs/audit_run_nlp_pubmedbert"
+        run_cmd "python3 audit_runner.py --model assets/models/clinical_nlp/nlp_pubmedbert_diagnostic.onnx --metadata data/sample_mednli_metadata.csv --modality clinical_nlp --output-dir outputs/audit_run_nlp_pubmedbert"
+        ;;
+    10)
+        echo "Executing Dermatology (EfficientNet-B0 Melanoma Screening) Audit Battery..."
+        run_cmd "python3 audit_runner.py --model assets/models/dermatology/derm_efficientnet_melanoma.onnx --metadata data/sample_dermatology_metadata.csv --modality dermatology_dermoscopy --output-dir outputs/audit_run_dermatology"
+        ;;
+    11)
+        echo "Executing Digital Pathology (PatchCamelyon WSI Sentinel Node) Audit Battery..."
+        run_cmd "python3 audit_runner.py --model assets/models/pathology/path_mobilenet_pcam.onnx --metadata data/sample_histopathology_metadata.csv --modality digital_pathology --output-dir outputs/audit_run_histopathology"
         ;;
 *)
-echo "Usage: ./start.sh [1|2|3|4|5|6|7|8|9]"
+echo "Usage: ./start.sh [1|2|3|4|5|6|7|8|9|10|11]"
 echo "  1) Run pytest test suite"
 echo "  2) Run HLT-08 clinical audit battery (CheXNet X-Ray Hospital Benchmark)"
 echo "  3) Launch full stack (FastAPI + Vite UI)"
@@ -113,6 +121,8 @@ echo "  6) Run Diabetic Retinopathy (Retinal Fundus ONNX) audit battery"
 echo "  7) Run Chest Radiography (Portable Bedside MobileNet ONNX) audit battery"
 echo "  8) Run Clinical NLP (Bio_ClinicalBERT on MIMIC-IV Notes) audit battery"
 echo "  9) Run Clinical NLP (PubMedBERT on MedNLI Triage) audit battery"
+echo " 10) Run Dermatology (EfficientNet-B0 Melanoma Screening) audit battery"
+echo " 11) Run Digital Pathology (PatchCamelyon WSI Sentinel Node) audit battery"
 exit 1
 ;;
 esac

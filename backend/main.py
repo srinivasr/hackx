@@ -51,7 +51,7 @@ MODEL_REGISTRY = {
     "dr_lcnet_edge": {
         "id": "dr_lcnet_edge",
         "name": "Diabetic Retinopathy - Mobile LCNet (Edge)",
-        "path": "assets/models/dr_retinal_lcnet_edge.onnx",
+        "path": "assets/models/retinal_dr/dr_retinal_lcnet_edge.onnx",
         "architecture": "PP-LCNet + MSAG (7.6M Params)",
         "modality": "retinal_fundus",
         "target_deployment": "Rural PHC Portable Fundus Camera",
@@ -59,7 +59,7 @@ MODEL_REGISTRY = {
     "dr_resnet_teacher": {
         "id": "dr_resnet_teacher",
         "name": "Diabetic Retinopathy - ResNet Teacher (Server)",
-        "path": "assets/models/dr_retinal_resnet_teacher.onnx",
+        "path": "assets/models/retinal_dr/dr_retinal_resnet_teacher.onnx",
         "architecture": "ResNet18-DeepEnsemble (11.2M Params)",
         "modality": "retinal_fundus",
         "target_deployment": "District Hospital GPU Server",
@@ -67,7 +67,7 @@ MODEL_REGISTRY = {
     "cxr_chexnet": {
         "id": "cxr_chexnet",
         "name": "Chest Radiography - CheXNet DenseNet121 (Hospital Grade)",
-        "path": "assets/models/cxr_chexnet_densenet121.onnx",
+        "path": "assets/models/chest_xray/cxr_chexnet_densenet121.onnx",
         "architecture": "DenseNet-121 Clinical Benchmark (7.0M Params)",
         "modality": "chest_xray",
         "target_deployment": "Radiology Department Workstation",
@@ -75,7 +75,7 @@ MODEL_REGISTRY = {
     "cxr_mobilenet_edge": {
         "id": "cxr_mobilenet_edge",
         "name": "Chest Radiography - MobileNetV2 (Bedside Cart Edge)",
-        "path": "assets/models/cxr_mobilenet_edge.onnx",
+        "path": "assets/models/chest_xray/cxr_mobilenet_edge.onnx",
         "architecture": "MobileNetV2 Depthwise-Conv (3.5M Params)",
         "modality": "chest_xray",
         "target_deployment": "Portable Bedside ICU X-Ray Cart",
@@ -83,7 +83,7 @@ MODEL_REGISTRY = {
     "nlp_bioclinicalbert": {
         "id": "nlp_bioclinicalbert",
         "name": "Clinical NLP - Bio_ClinicalBERT (ICU Admission Risk)",
-        "path": "assets/models/nlp_bioclinicalbert_risk.onnx",
+        "path": "assets/models/clinical_nlp/nlp_bioclinicalbert_risk.onnx",
         "architecture": "Bio_ClinicalBERT MIMIC-IV Transformer (110M Params)",
         "modality": "clinical_nlp",
         "target_deployment": "Hospital Intensive Care Unit (ICU) Workstation",
@@ -91,10 +91,42 @@ MODEL_REGISTRY = {
     "nlp_pubmedbert": {
         "id": "nlp_pubmedbert",
         "name": "Clinical NLP - PubMedBERT (Clinical Decision Support)",
-        "path": "assets/models/nlp_pubmedbert_diagnostic.onnx",
+        "path": "assets/models/clinical_nlp/nlp_pubmedbert_diagnostic.onnx",
         "architecture": "PubMedBERT Biomedical Transformer (110M Params)",
         "modality": "clinical_nlp",
         "target_deployment": "Emergency Department (ED) Triage Console",
+    },
+    "derm_efficientnet_melanoma": {
+        "id": "derm_efficientnet_melanoma",
+        "name": "Dermatology - EfficientNet-B0 (Mobile Dermatoscope Edge)",
+        "path": "assets/models/dermatology/derm_efficientnet_melanoma.onnx",
+        "architecture": "EfficientNet-B0 Melanoma Classifier (5.3M Params)",
+        "modality": "dermatology_dermoscopy",
+        "target_deployment": "Point-of-Care Handheld Dermatoscope",
+    },
+    "derm_resnet_reference": {
+        "id": "derm_resnet_reference",
+        "name": "Dermatology - ResNet-18 (Hospital Dermatopathology Server)",
+        "path": "assets/models/dermatology/derm_resnet_reference.onnx",
+        "architecture": "ResNet-18 ISIC Reference (11.7M Params)",
+        "modality": "dermatology_dermoscopy",
+        "target_deployment": "Centralized Skin Cancer Clinic Review Server",
+    },
+    "path_mobilenet_pcam": {
+        "id": "path_mobilenet_pcam",
+        "name": "Digital Pathology - MobileNetV2 (PatchCamelyon Edge)",
+        "path": "assets/models/pathology/path_mobilenet_pcam.onnx",
+        "architecture": "MobileNetV2 WSI Lymph Node Classifier (3.5M Params)",
+        "modality": "digital_pathology",
+        "target_deployment": "WSI Scanner Edge Pre-Filter",
+    },
+    "path_densenet_wsi": {
+        "id": "path_densenet_wsi",
+        "name": "Digital Pathology - DenseNet-121 (Histology Reference)",
+        "path": "assets/models/pathology/path_densenet_wsi.onnx",
+        "architecture": "DenseNet-121 Breast Cancer Metastasis (8.0M Params)",
+        "modality": "digital_pathology",
+        "target_deployment": "Central Histopathology Diagnostic Suite",
     },
 }
 
@@ -143,6 +175,28 @@ DATASET_REGISTRY = {
         "compatible_models": ["nlp_bioclinicalbert", "nlp_pubmedbert"],
         "default_output_dir": "outputs/audit_run_nlp_pubmedbert",
     },
+    "dermatology_isic_60": {
+        "id": "dermatology_isic_60",
+        "name": "ISIC Multicenter Dermoscopy Cohort",
+        "modality": "dermatology_dermoscopy",
+        "path": "data/sample_dermatology_metadata.csv",
+        "sample_count": 60,
+        "sites": ["Sydney Melanoma Centre", "Barcelona Derm Clinic"],
+        "description": "60 dermoscopic lesions across Fitzpatrick phototypes I-VI and handheld contact dermatoscopes",
+        "compatible_models": ["derm_efficientnet_melanoma", "derm_resnet_reference"],
+        "default_output_dir": "outputs/audit_run_dermatology",
+    },
+    "histopathology_pcam_60": {
+        "id": "histopathology_pcam_60",
+        "name": "PatchCamelyon WSI Sentinel Node Cohort",
+        "modality": "digital_pathology",
+        "path": "data/sample_histopathology_metadata.csv",
+        "sample_count": 60,
+        "sites": ["Radboud Pathology Lab", "Utrecht Biobank"],
+        "description": "60 H&E stained Whole Slide Imaging patches across Ventana and Leica staining protocols",
+        "compatible_models": ["path_mobilenet_pcam", "path_densenet_wsi"],
+        "default_output_dir": "outputs/audit_run_histopathology",
+    },
 }
 
 LATEST_AUDIT_CACHE: Dict[str, Any] = {}
@@ -160,6 +214,10 @@ def resolve_audit_paths(model_id: str, dataset_id: Optional[str] = None):
             dataset_id = "chest_xray_60"
         elif model_meta.get("modality") == "clinical_nlp":
             dataset_id = "clinical_notes_mimic_60"
+        elif model_meta.get("modality") == "dermatology_dermoscopy":
+            dataset_id = "dermatology_isic_60"
+        elif model_meta.get("modality") == "digital_pathology":
+            dataset_id = "histopathology_pcam_60"
         else:
             dataset_id = "retinal_dr_60"
 
@@ -182,6 +240,20 @@ def load_test_samples(modality: str = "retinal_fundus") -> Dict[str, np.ndarray]
     samples = {}
     if modality == "chest_xray":
         files = sorted(glob.glob("data/sample_scans/*.png"))[:6]
+        for p in files:
+            key = os.path.basename(p).split(".")[0]
+            img = cv2.imread(p)
+            if img is not None:
+                samples[key] = img
+    elif modality in ["dermatology_dermoscopy", "dermatology", "skin"]:
+        files = sorted(glob.glob("data/sample_dermatology_scans/*.png"))[:6]
+        for p in files:
+            key = os.path.basename(p).split(".")[0]
+            img = cv2.imread(p)
+            if img is not None:
+                samples[key] = img
+    elif modality in ["digital_pathology", "histopathology", "pathology"]:
+        files = sorted(glob.glob("data/sample_histopathology_scans/*.png"))[:6]
         for p in files:
             key = os.path.basename(p).split(".")[0]
             img = cv2.imread(p)
@@ -346,7 +418,7 @@ def get_modalities():
                 "clinical_targets": ["Diabetic Retinopathy (5-Class)", "Glaucoma Cup/Disc", "Macular Edema"],
                 "perturbations": ["Defocus Blur", "Corneal Glare", "Illumination Drop", "Sensor Downsampling"],
                 "reference_benchmarks": ["EyePACS-1", "IDRiD", "MESSIDOR-2"],
-                "default_model": "assets/models/dr_retinal_lcnet_edge.onnx",
+                "default_model": "assets/models/retinal_dr/dr_retinal_lcnet_edge.onnx",
             },
             {
                 "id": "chest_xray",
@@ -354,7 +426,7 @@ def get_modalities():
                 "clinical_targets": ["Pneumonia", "Infiltration", "Cardiomegaly", "Atelectasis"],
                 "perturbations": ["Contrast Attenuation", "Poisson Quantum Noise", "Patient Motion Blur", "Lead Markers"],
                 "reference_benchmarks": ["NIH ChestX-ray14", "CheXNet", "MIMIC-CXR"],
-                "default_model": "assets/models/cxr_chexnet_densenet121.onnx",
+                "default_model": "assets/models/chest_xray/cxr_chexnet_densenet121.onnx",
             },
             {
                 "id": "ehr_tabular",
@@ -370,7 +442,23 @@ def get_modalities():
                 "clinical_targets": ["ICU Admission Risk", "Acute Decompensation", "Diagnostic Entailment (MedNLI)", "NegEx Negation Inversion"],
                 "perturbations": ["OCR Typographical Noise", "Medical Abbreviation Density", "Hasty Note Truncation", "Demographic Pronoun Swapping"],
                 "reference_benchmarks": ["MIMIC-IV-Note", "MedNLI", "i2b2/n2c2", "PubMedQA"],
-                "default_model": "assets/models/nlp_bioclinicalbert_risk.onnx",
+                "default_model": "assets/models/clinical_nlp/nlp_bioclinicalbert_risk.onnx",
+            },
+            {
+                "id": "dermatology_dermoscopy",
+                "name": "Dermatology Suite (Dermoscopy & Melanoma Screening)",
+                "clinical_targets": ["Malignant Melanoma", "Basal Cell Carcinoma", "Atypical Nevi"],
+                "perturbations": ["Specular Glare", "Peripheral Vignetting", "Handheld Tremor Defocus"],
+                "reference_benchmarks": ["ISIC-2024", "HAM10000", "BCN20000"],
+                "default_model": "assets/models/dermatology/derm_efficientnet_melanoma.onnx",
+            },
+            {
+                "id": "digital_pathology",
+                "name": "Digital Pathology Suite (Whole Slide Imaging WSI)",
+                "clinical_targets": ["Sentinel Lymph Node Metastasis", "Glandular Atypia", "Invasive Carcinoma"],
+                "perturbations": ["H&E Stain Variability", "WSI Z-Plane Defocus", "Microtome Tissue Folding"],
+                "reference_benchmarks": ["PatchCamelyon (PCam)", "CAMELYON17", "TCGA"],
+                "default_model": "assets/models/pathology/path_mobilenet_pcam.onnx",
             },
         ]
     }
@@ -433,6 +521,24 @@ CLINICAL_NLP_GROUND_TRUTH = {
     "note_0006": 0,
 }
 
+DERMATOLOGY_GROUND_TRUTH = {
+    "lesion_0001": 1,
+    "lesion_0002": 0,
+    "lesion_0003": 1,
+    "lesion_0004": 0,
+    "lesion_0005": 0,
+    "lesion_0006": 1,
+}
+
+HISTOPATHOLOGY_GROUND_TRUTH = {
+    "wsi_0001": 1,
+    "wsi_0002": 0,
+    "wsi_0003": 1,
+    "wsi_0004": 0,
+    "wsi_0005": 1,
+    "wsi_0006": 0,
+}
+
 
 @app.post("/api/audit/run")
 def run_audit(model_id: str = Query("dr_lcnet_edge")):
@@ -448,6 +554,10 @@ def run_audit(model_id: str = Query("dr_lcnet_edge")):
         gt_labels = CXR_GROUND_TRUTH
     elif modality == "clinical_nlp":
         gt_labels = CLINICAL_NLP_GROUND_TRUTH
+    elif modality in ["dermatology_dermoscopy", "dermatology", "skin"]:
+        gt_labels = DERMATOLOGY_GROUND_TRUTH
+    elif modality in ["digital_pathology", "histopathology", "pathology"]:
+        gt_labels = HISTOPATHOLOGY_GROUND_TRUTH
     else:
         gt_labels = RETINAL_GROUND_TRUTH
     audit_res = run_full_model_audit(evaluator, samples, ground_truth_labels=gt_labels, modality=modality)

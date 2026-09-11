@@ -389,6 +389,193 @@ class ClinicalTextSuite:
         return f"[EHR CLERICAL RECORD #9824 - BETH ISRAEL ICUR TRANSCRIPTION COMPLETE] {text}"
 
 
+# ---------------------------------------------------------------------------
+# 4. Dermatology Suite (Dermoscopy & Melanoma Screening)
+# ---------------------------------------------------------------------------
+
+class DermatologySuite:
+    name = "dermatology_dermoscopy"
+    description = "Dermoscopy & Point-of-Care Melanoma Screening Stress Battery"
+
+    @staticmethod
+    def get_corruption_ladder() -> Dict[str, Any]:
+        return {
+            "specular_glare": DermatologySuite.apply_specular_glare,
+            "peripheral_vignetting": DermatologySuite.apply_peripheral_vignetting,
+            "handheld_defocus": DermatologySuite.apply_handheld_defocus,
+        }
+
+    @staticmethod
+    def apply_specular_glare(img: np.ndarray, severity: int) -> np.ndarray:
+        """Simulates immersion fluid flash glare reflections on skin surface."""
+        glare_intensities = {1: 0.20, 2: 0.40, 3: 0.60, 4: 0.75, 5: 0.90}
+        intensity = glare_intensities.get(severity, 0.60)
+        out = img.copy().astype(np.float32)
+        h, w = out.shape[:2]
+        center = (int(w * 0.45), int(h * 0.45))
+        radius = int(min(h, w) * (0.12 + 0.05 * severity))
+        mask = np.zeros((h, w), dtype=np.float32)
+        cv2.circle(mask, center, radius, 1.0, -1)
+        mask = cv2.GaussianBlur(mask, (31, 31), 11)
+        glare = np.ones_like(out) * 255.0
+        out = out * (1.0 - mask[:, :, None] * intensity) + glare * (mask[:, :, None] * intensity)
+        return np.clip(out, 0, 255).astype(np.uint8)
+
+    @staticmethod
+    def apply_peripheral_vignetting(img: np.ndarray, severity: int) -> np.ndarray:
+        """Simulates dermatoscope optical barrel illumination falloff."""
+        vignette_factors = {1: 0.80, 2: 0.65, 3: 0.50, 4: 0.35, 5: 0.20}
+        factor = vignette_factors.get(severity, 0.50)
+        h, w = img.shape[:2]
+        y, x = np.ogrid[:h, :w]
+        dist = np.sqrt((x - w/2)**2 + (y - h/2)**2)
+        max_dist = np.sqrt((w/2)**2 + (h/2)**2)
+        falloff = 1.0 - (dist / max_dist) * (1.0 - factor)
+        falloff = np.clip(falloff, factor, 1.0)
+        out = img.astype(np.float32) * falloff[:, :, None]
+        return np.clip(out, 0, 255).astype(np.uint8)
+
+    @staticmethod
+    def apply_handheld_defocus(img: np.ndarray, severity: int) -> np.ndarray:
+        """Simulates operator hand motion and patient tremor blur."""
+        k_sizes = {1: 3, 2: 7, 3: 11, 4: 17, 5: 23}
+        k = k_sizes.get(severity, 11)
+        return cv2.GaussianBlur(img, (k, k), k / 3.0)
+
+    @staticmethod
+    def get_shortcuts() -> Dict[str, Any]:
+        return {
+            "surgical_skin_marker": DermatologySuite._surgical_marker,
+            "measurement_ruler": DermatologySuite._measurement_ruler,
+            "gel_air_bubble": DermatologySuite._gel_bubble,
+        }
+
+    @staticmethod
+    def _surgical_marker(img: np.ndarray) -> np.ndarray:
+        """Injects surgical gentian violet pen line near lesion (Nature Med 2020 shortcut)."""
+        out = img.copy()
+        h, w = out.shape[:2]
+        # Draw blue/violet surgical incision line
+        violet_bgr = (180, 40, 90)
+        pt1 = (int(w * 0.15), int(h * 0.80))
+        pt2 = (int(w * 0.70), int(h * 0.90))
+        cv2.line(out, pt1, pt2, violet_bgr, max(2, int(w * 0.015)), cv2.LINE_AA)
+        return out
+
+    @staticmethod
+    def _measurement_ruler(img: np.ndarray) -> np.ndarray:
+        """Injects millimeter calibration ruler ticks along image edge."""
+        out = img.copy()
+        h, w = out.shape[:2]
+        ruler_y = h - 20
+        cv2.line(out, (20, ruler_y), (w - 20, ruler_y), (240, 240, 240), 2)
+        for x in range(20, w - 20, 15):
+            tick_h = 8 if (x % 30 == 0) else 4
+            cv2.line(out, (x, ruler_y), (x, ruler_y - tick_h), (240, 240, 240), 1)
+        return out
+
+    @staticmethod
+    def _gel_bubble(img: np.ndarray) -> np.ndarray:
+        """Injects immersion ultrasound/dermatoscope air bubble artifact."""
+        out = img.copy()
+        h, w = out.shape[:2]
+        center = (int(w * 0.75), int(h * 0.25))
+        radius = int(min(h, w) * 0.08)
+        cv2.circle(out, center, radius, (20, 20, 20), 2)
+        cv2.circle(out, (center[0] - 2, center[1] - 2), int(radius * 0.3), (250, 250, 250), -1)
+        return out
+
+
+# ---------------------------------------------------------------------------
+# 5. Digital Histopathology Suite (Whole Slide Imaging WSI / PatchCamelyon)
+# ---------------------------------------------------------------------------
+
+class HistopathologySuite:
+    name = "digital_pathology"
+    description = "Whole-Slide Histopathology & Lymph Node Metastasis Stress Battery"
+
+    @staticmethod
+    def get_corruption_ladder() -> Dict[str, Any]:
+        return {
+            "he_stain_variability": HistopathologySuite.apply_he_stain_variability,
+            "wsi_defocus": HistopathologySuite.apply_wsi_defocus,
+            "microtome_compression": HistopathologySuite.apply_microtome_compression,
+        }
+
+    @staticmethod
+    def apply_he_stain_variability(img: np.ndarray, severity: int) -> np.ndarray:
+        """Simulates Hematoxylin & Eosin chemical pH batch stain shift."""
+        stain_shifts = {
+            1: (1.05, 0.95, 1.05), # Subtle eosin shift
+            2: (1.12, 0.90, 1.10),
+            3: (1.22, 0.85, 1.18), # Moderate pH variation
+            4: (1.35, 0.75, 1.25),
+            5: (1.50, 0.65, 1.35), # Severe over-staining
+        }
+        b_mul, g_mul, r_mul = stain_shifts.get(severity, (1.22, 0.85, 1.18))
+        out = img.astype(np.float32)
+        out[:, :, 0] *= b_mul
+        out[:, :, 1] *= g_mul
+        out[:, :, 2] *= r_mul
+        return np.clip(out, 0, 255).astype(np.uint8)
+
+    @staticmethod
+    def apply_wsi_defocus(img: np.ndarray, severity: int) -> np.ndarray:
+        """Simulates whole slide scanner automated stage focus drift."""
+        k_sizes = {1: 3, 2: 7, 3: 11, 4: 15, 5: 21}
+        k = k_sizes.get(severity, 11)
+        return cv2.GaussianBlur(img, (k, k), k / 3.2)
+
+    @staticmethod
+    def apply_microtome_compression(img: np.ndarray, severity: int) -> np.ndarray:
+        """Simulates microtome tissue section folding and compression wrinkles."""
+        out = img.copy()
+        h, w = out.shape[:2]
+        num_folds = severity
+        for i in range(num_folds):
+            y = int(h * (0.2 + 0.15 * i))
+            fold_h = max(2, int(h * 0.02))
+            # Dark compression line
+            out[y : y + fold_h, :] = (out[y : y + fold_h, :].astype(np.float32) * 0.6).astype(np.uint8)
+        return out
+
+    @staticmethod
+    def get_shortcuts() -> Dict[str, Any]:
+        return {
+            "glass_slide_bubble": HistopathologySuite._slide_bubble,
+            "pathologist_grease_pen": HistopathologySuite._grease_pen,
+            "coverslip_edge": HistopathologySuite._coverslip_edge,
+        }
+
+    @staticmethod
+    def _slide_bubble(img: np.ndarray) -> np.ndarray:
+        out = img.copy()
+        h, w = out.shape[:2]
+        center = (int(w * 0.25), int(h * 0.75))
+        radius = int(min(h, w) * 0.09)
+        cv2.circle(out, center, radius, (40, 40, 40), 2)
+        return out
+
+    @staticmethod
+    def _grease_pen(img: np.ndarray) -> np.ndarray:
+        """Pathologist green ink boundary circle on glass slide."""
+        out = img.copy()
+        h, w = out.shape[:2]
+        center = (int(w * 0.5), int(h * 0.5))
+        axes = (int(w * 0.42), int(h * 0.42))
+        cv2.ellipse(out, center, axes, 0, 0, 180, (40, 180, 40), max(2, int(w * 0.012)))
+        return out
+
+    @staticmethod
+    def _coverslip_edge(img: np.ndarray) -> np.ndarray:
+        out = img.copy()
+        h, w = out.shape[:2]
+        edge_x = int(w * 0.88)
+        cv2.line(out, (edge_x, 0), (edge_x, h), (180, 180, 180), 2)
+        cv2.line(out, (edge_x + 1, 0), (edge_x + 1, h), (40, 40, 40), 1)
+        return out
+
+
 def get_modality_suite(modality_name: str):
     mapping = {
         "chest_xray": RadiologySuite,
@@ -396,6 +583,14 @@ def get_modality_suite(modality_name: str):
         "retinal_fundus": OphthalmologySuite,
         "ophthalmology": OphthalmologySuite,
         "fundus": OphthalmologySuite,
+        "dermatology": DermatologySuite,
+        "dermatology_dermoscopy": DermatologySuite,
+        "dermoscopy": DermatologySuite,
+        "skin": DermatologySuite,
+        "digital_pathology": HistopathologySuite,
+        "histopathology": HistopathologySuite,
+        "pathology": HistopathologySuite,
+        "wsi": HistopathologySuite,
         "tabular_ehr": TabularEHRSuite,
         "ehr": TabularEHRSuite,
         "clinical_nlp": ClinicalTextSuite,
