@@ -47,17 +47,16 @@ desktop.ini
 
 # ── Project Outputs & Generated Artifacts ──────────────
 outputs/
+output
 output/
 *.pdf
 
-# ── Model Weights (large binaries — track via Git LFS) ─
-assets/models/*.onnx
-!assets/models/candidate_model_a.onnx
-!assets/models/candidate_model_b.onnx
-assets/models/*.onnx.data
+# ── Model Weights ───────────────────────────────────────
+*.bin
+*.pt
+*.pth
 assets/models/*.pt
 assets/models/*.pth
-*.bin
 
 # ── Nix ────────────────────────────────────────────────
 result
@@ -70,7 +69,3 @@ result-*
 .env
 .env.*
 !.envrc
-
-# ── Sample Data ────────────────────────────────────────
-data/sample_retinal_scans/
-data/sample_retinal_metadata.csv

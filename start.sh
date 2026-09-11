@@ -49,7 +49,7 @@ case "$ACTION" in
         ;;
     2)
         echo "Executing HLT-08 Pre-Deployment Audit Battery (CLI)..."
-        run_cmd "python3 audit_runner.py --model benchmark:chexnet-densenet121 --metadata data/sample_metadata.csv --output-dir output/audit_run_01"
+        run_cmd "python3 audit_runner.py --model assets/models/cxr_chexnet_densenet121.onnx --metadata data/sample_metadata.csv --output-dir output/audit_run_01"
         ;;
     3)
         if [ ! -d "$SCRIPT_DIR/ui/node_modules" ]; then
@@ -75,7 +75,7 @@ import glob, cv2
 from engine.auditor import CandidateModelEvaluator, run_full_model_audit
 from backend.certificate_gen import generate_deployment_certificate
 
-evaluator = CandidateModelEvaluator('assets/models/candidate_model_a.onnx', 'Candidate-Model-A')
+evaluator = CandidateModelEvaluator('assets/models/dr_retinal_lcnet_edge.onnx', 'Diabetic-Retinopathy-LCNet')
 samples = {f.split('/')[-1].split('.')[0]: cv2.imread(f) for f in glob.glob('assets/test_samples/*.jpg')}
 audit = run_full_model_audit(evaluator, samples)
 generate_deployment_certificate(audit, 'outputs/TrustCheck_Certificate_Sample.pdf')
@@ -88,17 +88,21 @@ print('Certificate generated at outputs/TrustCheck_Certificate_Sample.pdf')
         ;;
     6)
         echo "Executing Diabetic Retinopathy (Retinal Fundus) Audit Battery..."
-        run_cmd "python3 audit_runner.py --model assets/models/candidate_model_a.onnx --metadata data/sample_retinal_metadata.csv --modality retinal_fundus --output-dir output/audit_run_retinal_dr"
+        run_cmd "python3 audit_runner.py --model assets/models/dr_retinal_lcnet_edge.onnx --metadata data/sample_retinal_metadata.csv --modality retinal_fundus --output-dir output/audit_run_retinal_dr"
         ;;
-    *)
-        echo "Usage: ./start.sh [1|2|3|4|5|6]"
-        echo "  1) Run pytest test suite"
-        echo "  2) Run HLT-08 clinical audit battery (CheXNet X-Ray)"
-        echo "  3) Launch full stack (FastAPI + Vite UI)"
-        echo "  4) Generate retinal demo PDF certificate"
-        echo "  5) Launch Streamlit Auditor Dashboard"
-        echo "  6) Run Diabetic Retinopathy (Retinal Fundus ONNX) audit battery"
-        exit 1
+    7)
+        echo "Executing Chest Radiography (Portable Bedside MobileNet) Audit Battery..."
+        run_cmd "python3 audit_runner.py --model assets/models/cxr_mobilenet_edge.onnx --metadata data/sample_metadata.csv --modality chest_xray --output-dir outputs/audit_run_cxr_mobilenet_edge"
         ;;
+*)
+echo "Usage: ./start.sh [1|2|3|4|5|6|7]"
+echo "  1) Run pytest test suite"
+echo "  2) Run HLT-08 clinical audit battery (CheXNet X-Ray Hospital Benchmark)"
+echo "  3) Launch full stack (FastAPI + Vite UI)"
+echo "  4) Generate retinal demo PDF certificate"
+echo "  5) Launch Streamlit Auditor Dashboard"
+echo "  6) Run Diabetic Retinopathy (Retinal Fundus ONNX) audit battery"
+echo "  7) Run Chest Radiography (Portable Bedside MobileNet ONNX) audit battery"
+exit 1
+;;
 esac
-

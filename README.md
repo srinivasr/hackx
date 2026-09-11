@@ -107,8 +107,10 @@ trust-check/
 │
 ├── assets/                         # Test Subjects & Datasets (Treated as 3rd-party)
 │   ├── models/
-│   │   ├── candidate_model_a.onnx  # Mobile LCNet student model (7.6M params)
-│   │   └── candidate_model_a.onnx.data
+│   │   ├── dr_retinal_lcnet_edge.onnx      # Diabetic Retinopathy PP-LCNet edge model (12.7 MB)
+│   │   ├── dr_retinal_resnet_teacher.onnx  # Diabetic Retinopathy ResNet teacher model (44.6 MB)
+│   │   ├── cxr_chexnet_densenet121.onnx    # Chest X-Ray CheXNet DenseNet121 hospital benchmark (27.7 MB)
+│   │   └── cxr_mobilenet_edge.onnx         # Chest X-Ray MobileNetV2 bedside cart edge model (8.4 MB)
 │   └── test_samples/               # Multi-cohort clinical scans (IDRiD, DRIMDB, ODIR)
 │       ├── sample_clinical_pass.jpg
 │       ├── sample_severe_npdr.jpg

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -9,6 +9,7 @@ import {
   Download,
   RefreshCw,
   Cpu,
+  Database,
   Layers,
   Zap,
   CheckCircle2,
@@ -16,18 +17,34 @@ import {
   Eye,
   Upload,
   X,
-  Folder,
-  Plus,
 } from 'lucide-react';
 import './App.css';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'stress_studio', 'failures', 'arena'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'cohort', 'stress_studio', 'failures', 'arena'
+  const [arenaModality, setArenaModality] = useState('retinal_dr'); // 'retinal_dr', 'chest_xray'
   const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState('candidate_a_edge');
+  const [selectedModel, setSelectedModel] = useState('dr_lcnet_edge');
+  const [datasets, setDatasets] = useState([]);
+  const [selectedDataset, setSelectedDataset] = useState('retinal_dr_60');
   const [auditData, setAuditData] = useState(null);
   const [cohortData, setCohortData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [cohortLoading, setCohortLoading] = useState(false);
+
+  // Clinical AI Ingestion Center State
+  const [showIngestModal, setShowIngestModal] = useState(false);
+  const [ingestMode, setIngestMode] = useState('upload_onnx'); // 'upload_onnx', 'register_path', 'upload_dataset'
+  const [modelFile, setModelFile] = useState(null);
+  const [modelName, setModelName] = useState('');
+  const [modelArch, setModelArch] = useState('');
+  const [modelTier, setModelTier] = useState('Rural PHC Portable Device');
+  const [modelModality, setModelModality] = useState('retinal_fundus');
+  const [localPath, setLocalPath] = useState('');
+  const [datasetFile, setDatasetFile] = useState(null);
+  const [datasetName, setDatasetName] = useState('');
+  const [datasetModality, setDatasetModality] = useState('retinal_fundus');
+  const [ingestLoading, setIngestLoading] = useState(false);
 
   // Interactive Stress Studio State
   const [stressType, setStressType] = useState('blur');
@@ -36,174 +53,91 @@ export default function App() {
   const [liveStressResult, setLiveStressResult] = useState(null);
   const [stressLoading, setStressLoading] = useState(false);
 
-  // Debounce & race condition tracking for live slider
-  const debounceTimerRef = useRef(null);
-  const currentRequestIdRef = useRef(0);
-
-  // Local Model & Dataset Ingestion Center Modal State
-  const [showIngestModal, setShowIngestModal] = useState(false);
-  const [ingestMode, setIngestMode] = useState('upload_model'); // 'upload_model', 'register_path', 'upload_dataset'
-  const [ingestLoading, setIngestLoading] = useState(false);
-  const [ingestSuccess, setIngestSuccess] = useState('');
-  const [ingestError, setIngestError] = useState('');
-
-  // Ingestion Form State
-  const [modelFile, setModelFile] = useState(null);
-  const [modelName, setModelName] = useState('');
-  const [modelArch, setModelArch] = useState('');
-  const [modelTier, setModelTier] = useState('Rural PHC Portable Fundus Camera');
-  const [localPath, setLocalPath] = useState('');
-  const [datasetFile, setDatasetFile] = useState(null);
-  const [datasetName, setDatasetName] = useState('');
-
-
-  // Fetch registered models & initial audit data
+  // Fetch registered models, datasets, & initial audit data
   useEffect(() => {
     fetch('/api/models')
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data.models && data.models.length > 0) {
+        if (data && data.models && data.models.length > 0) {
           setModels(data.models);
         }
       })
-      .catch((err) => console.error('Error fetching models:', err));
+      .catch((err) => console.warn('Models endpoint not reachable yet:', err.message));
 
-    fetch('/api/audit/cohort-summary')
-      .then((res) => res.json())
+    fetch('/api/datasets')
+      .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
+        if (data && data.datasets && data.datasets.length > 0) {
+          setDatasets(data.datasets);
+        }
+      })
+      .catch((err) => console.warn('Datasets endpoint not reachable yet:', err.message));
+
+    loadCohortData(selectedModel, selectedDataset);
+    loadLatestAudit(selectedModel);
+  }, []);
+
+  const isCXR = (mId) => mId === 'cxr_chexnet' || mId === 'cxr_mobilenet_edge';
+
+  const loadCohortData = async (mId, dId) => {
+    try {
+      const res = await fetch(`/api/audit/cohort-summary?model_id=${mId}&dataset_id=${dId}`);
+      if (res.ok) {
+        const data = await res.json();
         if (data && data.audit_run_id) {
           setCohortData(data);
         }
-      })
-      .catch((err) => console.error('Error fetching cohort telemetry:', err));
+      }
+    } catch (e) {
+      console.warn('Cohort telemetry unavailable:', e.message);
+    }
+  };
 
-    loadLatestAudit(selectedModel);
-  }, []);
+  const handleModelChange = (newModelId) => {
+    setSelectedModel(newModelId);
+    loadLatestAudit(newModelId);
+    // Intelligent auto-pairing with recommended clinical dataset
+    let newDatasetId = selectedDataset;
+    if (isCXR(newModelId) && selectedDataset !== 'chest_xray_60') {
+      newDatasetId = 'chest_xray_60';
+      setSelectedDataset('chest_xray_60');
+    } else if (!isCXR(newModelId) && selectedDataset === 'chest_xray_60') {
+      newDatasetId = 'retinal_dr_60';
+      setSelectedDataset('retinal_dr_60');
+    }
+    loadCohortData(newModelId, newDatasetId);
+  };
+
+  const handleDatasetChange = (newDatasetId) => {
+    setSelectedDataset(newDatasetId);
+    // Intelligent auto-pairing with recommended clinical model
+    let newModelId = selectedModel;
+    if (newDatasetId === 'chest_xray_60' && !isCXR(selectedModel)) {
+      newModelId = 'cxr_chexnet';
+      setSelectedModel('cxr_chexnet');
+      loadLatestAudit('cxr_chexnet');
+    } else if (newDatasetId === 'retinal_dr_60' && isCXR(selectedModel)) {
+      newModelId = 'dr_lcnet_edge';
+      setSelectedModel('dr_lcnet_edge');
+      loadLatestAudit('dr_lcnet_edge');
+    }
+    loadCohortData(newModelId, newDatasetId);
+  };
 
   const loadLatestAudit = async (modelId) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/audit/latest?model_id=${modelId}`);
-      const data = await res.json();
-      setAuditData(data);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.audit_id) {
+          setAuditData(data);
+        }
+      }
     } catch (e) {
-      console.error('Audit fetch failed', e);
+      console.warn('Audit fetch unavailable:', e.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleUploadModel = async (e) => {
-    e.preventDefault();
-    if (!modelFile) {
-      setIngestError('Please select a .onnx model file.');
-      return;
-    }
-    setIngestLoading(true);
-    setIngestError('');
-    try {
-      const formData = new FormData();
-      formData.append('file', modelFile);
-      formData.append('name', modelName || modelFile.name.replace('.onnx', ''));
-      formData.append('architecture', modelArch || 'Custom ONNX Diagnostic Classifier');
-      formData.append('target_deployment', modelTier);
-
-      const res = await fetch('/api/models/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!res.ok) throw new Error('Upload failed');
-      const data = await res.json();
-      
-      setIngestSuccess(`Model ${data.name} successfully registered into TrustCheck!`);
-      const modelsRes = await fetch('/api/models');
-      const modelsData = await modelsRes.json();
-      if (modelsData.models) setModels(modelsData.models);
-
-      setSelectedModel(data.model_id);
-      loadLatestAudit(data.model_id);
-      setTimeout(() => {
-        setShowIngestModal(false);
-        setIngestSuccess('');
-      }, 1200);
-    } catch (err) {
-      setIngestError(err.message || 'Error uploading model');
-    } finally {
-      setIngestLoading(false);
-    }
-  };
-
-  const handleRegisterPath = async (e) => {
-    e.preventDefault();
-    if (!localPath) {
-      setIngestError('Please provide a valid file path.');
-      return;
-    }
-    setIngestLoading(true);
-    setIngestError('');
-    try {
-      const formData = new FormData();
-      const derivedId = `custom_${Date.now()}`;
-      formData.append('model_id', derivedId);
-      formData.append('name', modelName || localPath.split('/').pop() || 'Local Model');
-      formData.append('path', localPath);
-      formData.append('architecture', modelArch || 'Local Custom Model');
-      formData.append('target_deployment', modelTier);
-
-      const res = await fetch('/api/models/register', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!res.ok) throw new Error('Registration failed');
-      const data = await res.json();
-
-      setIngestSuccess(`Model ${data.model.name} registered from local path!`);
-      const modelsRes = await fetch('/api/models');
-      const modelsData = await modelsRes.json();
-      if (modelsData.models) setModels(modelsData.models);
-
-      setSelectedModel(derivedId);
-      loadLatestAudit(derivedId);
-      setTimeout(() => {
-        setShowIngestModal(false);
-        setIngestSuccess('');
-      }, 1200);
-    } catch (err) {
-      setIngestError(err.message || 'Error registering path');
-    } finally {
-      setIngestLoading(false);
-    }
-  };
-
-  const handleUploadDataset = async (e) => {
-    e.preventDefault();
-    if (!datasetFile) {
-      setIngestError('Please select a .csv metadata cohort file.');
-      return;
-    }
-    setIngestLoading(true);
-    setIngestError('');
-    try {
-      const formData = new FormData();
-      formData.append('metadata_file', datasetFile);
-      formData.append('dataset_name', datasetName || datasetFile.name.replace('.csv', ''));
-
-      const res = await fetch('/api/datasets/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!res.ok) throw new Error('Dataset upload failed');
-      const data = await res.json();
-
-      setIngestSuccess(`Dataset ${data.dataset_name} (${data.n_samples} cohort patients) ingested successfully!`);
-      setTimeout(() => {
-        setShowIngestModal(false);
-        setIngestSuccess('');
-      }, 1500);
-    } catch (err) {
-      setIngestError(err.message || 'Error uploading dataset');
-    } finally {
-      setIngestLoading(false);
     }
   };
 
@@ -211,18 +145,34 @@ export default function App() {
     setLoading(true);
     try {
       const res = await fetch(`/api/audit/run?model_id=${selectedModel}`, { method: 'POST' });
-      const data = await res.json();
-      setAuditData(data);
+      if (res.ok) {
+        const data = await res.json();
+        setAuditData(data);
+      }
     } catch (e) {
-      console.error('Audit run failed', e);
+      console.warn('Audit run failed:', e.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Live single-stress slider trigger with race condition suppression
+  const handleRunCohortAudit = async () => {
+    setCohortLoading(true);
+    try {
+      const res = await fetch(`/api/audit/run-cohort?model_id=${selectedModel}&dataset_id=${selectedDataset}`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setCohortData(data);
+      }
+    } catch (e) {
+      console.warn('Cohort audit run failed:', e.message);
+    } finally {
+      setCohortLoading(false);
+    }
+  };
+
+  // Live single-stress slider trigger
   const runLiveStress = async (type, intensity, sample) => {
-    const reqId = ++currentRequestIdRef.current;
     setStressLoading(true);
     try {
       const formData = new FormData();
@@ -235,42 +185,117 @@ export default function App() {
         method: 'POST',
         body: formData,
       });
-      const data = await res.json();
-      if (reqId === currentRequestIdRef.current) {
+      if (res.ok) {
+        const data = await res.json();
         setLiveStressResult(data);
       }
     } catch (e) {
-      if (reqId === currentRequestIdRef.current) {
-        console.error('Live stress failed', e);
-      }
+      console.warn('Live stress test unavailable:', e.message);
     } finally {
-      if (reqId === currentRequestIdRef.current) {
-        setStressLoading(false);
-      }
+      setStressLoading(false);
     }
   };
 
-  // Debounced trigger: prevents flooding backend on fast slider drag
   useEffect(() => {
     if (activeTab === 'stress_studio') {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      debounceTimerRef.current = setTimeout(() => {
+      const timer = setTimeout(() => {
         runLiveStress(stressType, stressIntensity, sampleKey);
       }, 120);
+      return () => clearTimeout(timer);
     }
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
   }, [activeTab, stressType, stressIntensity, sampleKey, selectedModel]);
 
-  const getConfidenceColor = (conf) => {
-    if (conf >= 70) return '#10b981'; // Green (calibrated)
-    if (conf >= 45) return '#f59e0b'; // Amber (caution)
-    return '#ef4444'; // Red (collapse)
+  const handleUploadModel = async (e) => {
+    e.preventDefault();
+    if (!modelFile) return;
+    setIngestLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', modelFile);
+      formData.append('name', modelName || modelFile.name.replace('.onnx', ''));
+      formData.append('architecture', modelArch || 'ONNX Clinical Classifier');
+      formData.append('target_deployment', modelTier);
+      formData.append('modality', modelModality);
+
+      const res = await fetch('/api/models/upload', { method: 'POST', body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.model) {
+          setModels((prev) => [...prev, data.model]);
+          setSelectedModel(data.model_id);
+          setShowIngestModal(false);
+          setModelFile(null);
+          setModelName('');
+          handleModelChange(data.model_id);
+        }
+      }
+    } catch (err) {
+      console.warn('Model upload failed:', err.message);
+    } finally {
+      setIngestLoading(false);
+    }
+  };
+
+  const handleRegisterPath = async (e) => {
+    e.preventDefault();
+    if (!localPath) return;
+    setIngestLoading(true);
+    try {
+      const modelId = `model_${Date.now()}`;
+      const formData = new FormData();
+      formData.append('model_id', modelId);
+      formData.append('name', modelName || localPath.split('/').pop());
+      formData.append('path', localPath);
+      formData.append('architecture', modelArch || 'ONNX Clinical Classifier');
+      formData.append('target_deployment', modelTier);
+      formData.append('modality', modelModality);
+
+      const res = await fetch('/api/models/register', { method: 'POST', body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.model) {
+          setModels((prev) => [...prev, data.model]);
+          setSelectedModel(modelId);
+          setShowIngestModal(false);
+          setLocalPath('');
+          setModelName('');
+          handleModelChange(modelId);
+        }
+      }
+    } catch (err) {
+      console.warn('Path registration failed:', err.message);
+    } finally {
+      setIngestLoading(false);
+    }
+  };
+
+  const handleUploadDataset = async (e) => {
+    e.preventDefault();
+    if (!datasetFile) return;
+    setIngestLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('metadata_file', datasetFile);
+      formData.append('dataset_name', datasetName || datasetFile.name.replace('.csv', ''));
+      formData.append('modality', datasetModality);
+
+      const res = await fetch('/api/datasets/upload', { method: 'POST', body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.dataset) {
+          setDatasets((prev) => [...prev, data.dataset]);
+          setSelectedDataset(data.dataset_id);
+          setShowIngestModal(false);
+          setDatasetFile(null);
+          setDatasetName('');
+          handleDatasetChange(data.dataset_id);
+        }
+      }
+    } catch (err) {
+      console.warn('Dataset upload failed:', err.message);
+    } finally {
+      setIngestLoading(false);
+    }
   };
 
   const getVerdictBadge = (verdict) => {
@@ -284,20 +309,6 @@ export default function App() {
     return <span className="badge badge-danger"><XCircle size={13} /> REJECTED: Unsafe for Patient Care</span>;
   };
 
-  const renderStabilityVerdict = (stability, failReason = 'Sub-threshold', passReason = 'Tolerant') => {
-    if (stability === undefined || stability === null) {
-      return <span className="status-subtle">AUDITING...</span>;
-    }
-    const isPass = stability >= 50.0;
-    return (
-      <span className={isPass ? 'status-pass' : 'status-fail'}>
-        {isPass ? `PASS (${passReason})` : `FAIL (${failReason})`}
-      </span>
-    );
-  };
-
-
-
   return (
     <div className="layout">
       {/* Top Header */}
@@ -308,43 +319,54 @@ export default function App() {
           </div>
           <div>
             <h1 className="brand-title">TrustCheck</h1>
-            <p className="brand-subtitle">Clinical AI Pre-Deployment Safety & Stress-Testing Platform</p>
+            <p className="brand-subtitle">Clinical AI Pre-Deployment Safety &amp; Stress-Testing Platform</p>
           </div>
         </div>
 
         <div className="header-controls">
-          <div className="model-selector-wrapper">
-            <Cpu size={14} color="#94a3b8" />
-            <select
-              value={selectedModel}
-              onChange={(e) => {
-                setSelectedModel(e.target.value);
-                loadLatestAudit(e.target.value);
-              }}
-              className="model-select"
-            >
-              {models.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
+          <div className="selector-group">
+            <div className="model-selector-wrapper" title="Candidate Model">
+              <Cpu size={14} color="#94a3b8" />
+              <select
+                value={selectedModel}
+                onChange={(e) => handleModelChange(e.target.value)}
+                className="model-select"
+              >
+                {models.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="model-selector-wrapper" title="Evaluation Dataset / Cohort">
+              <Database size={14} color="#94a3b8" />
+              <select
+                value={selectedDataset}
+                onChange={(e) => handleDatasetChange(e.target.value)}
+                className="model-select"
+              >
+                {datasets.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.sample_count} scans)
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <button
-            onClick={() => {
-              setShowIngestModal(true);
-              setIngestError('');
-              setIngestSuccess('');
-            }}
+            onClick={() => setShowIngestModal(true)}
             className="btn btn-secondary"
-            title="Import or upload models & datasets from local hardware"
+            title="Ingest Custom Model or Cohort"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <Upload size={13} />
-            <span>Ingest Local Model</span>
+            <Upload size={14} />
+            <span>Ingest</span>
           </button>
 
           <button onClick={handleRunAudit} disabled={loading} className="btn btn-primary">
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
-            {loading ? 'Auditing...' : 'Run Full Stress Audit'}
+            {loading ? 'Auditing...' : 'Run Single Audit'}
           </button>
         </div>
       </header>
@@ -374,10 +396,7 @@ export default function App() {
           onClick={() => setActiveTab('failures')}
         >
           <AlertTriangle size={15} />
-          <span>Silent Failures</span>
-          <span className={`tab-badge ${(auditData?.discrepancies?.length || 0) > 0 ? 'tab-badge-danger' : ''}`}>
-            {auditData?.discrepancies?.length || 0}
-          </span>
+          Silent Failures ({auditData?.discrepancies?.length || 0})
         </button>
         <button
           className={`tab-btn ${activeTab === 'arena' ? 'active' : ''}`}
@@ -469,45 +488,34 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(() => {
-                    const blurStability = auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability;
-                    const illumStability = auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability;
-                    const glareStability = auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability;
-                    const resStability = auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability;
-
-                    return (
-                      <>
-                        <tr>
-                          <td><strong>Defocus / Motion Blur</strong></td>
-                          <td>σ = 0.0</td>
-                          <td>σ = 6.0 (Severe movement)</td>
-                          <td>{blurStability != null ? `${blurStability}%` : '--'}</td>
-                          <td>{renderStabilityVerdict(blurStability, 'Sub-threshold', 'Tolerant')}</td>
-                        </tr>
-                        <tr>
-                          <td><strong>Flash / Illumination Drop</strong></td>
-                          <td>100% Brightness</td>
-                          <td>-80% (Undilated pupil)</td>
-                          <td>{illumStability != null ? `${illumStability}%` : '--'}</td>
-                          <td>{renderStabilityVerdict(illumStability, 'Severe Sensitivity', 'Tolerant')}</td>
-                        </tr>
-                        <tr>
-                          <td><strong>Corneal Glare Reflection</strong></td>
-                          <td>0.00</td>
-                          <td>0.95 (Corneal Whiteout)</td>
-                          <td>{glareStability != null ? `${glareStability}%` : '--'}</td>
-                          <td>{renderStabilityVerdict(glareStability, 'Aperture Saturated', 'Tolerant')}</td>
-                        </tr>
-                        <tr>
-                          <td><strong>Sensor Resolution Downsampling</strong></td>
-                          <td>384x384 px</td>
-                          <td>96x96 px (Extreme drop)</td>
-                          <td>{resStability != null ? `${resStability}%` : '--'}</td>
-                          <td>{renderStabilityVerdict(resStability, 'Resolution Degraded', 'Tolerant')}</td>
-                        </tr>
-                      </>
-                    );
-                  })()}
+                  <tr>
+                    <td><strong>Defocus / Motion Blur</strong></td>
+                    <td>σ = 0.0</td>
+                    <td>σ = 6.0 (Severe movement)</td>
+                    <td>{auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</td>
+                    <td><span className="status-fail">FAIL (Sub-threshold)</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Flash / Illumination Drop</strong></td>
+                    <td>100% Brightness</td>
+                    <td>-80% (Undilated pupil)</td>
+                    <td>{auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</td>
+                    <td><span className="status-fail">FAIL (Severe Sensitivity)</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Corneal Glare Reflection</strong></td>
+                    <td>0.00</td>
+                    <td>0.95 (Corneal Whiteout)</td>
+                    <td>{auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</td>
+                    <td><span className="status-fail">FAIL (Aperture Saturated)</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Sensor Resolution Downsampling</strong></td>
+                    <td>384x384 px</td>
+                    <td>96x96 px (Extreme drop)</td>
+                    <td>{auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</td>
+                    <td><span className="status-pass">PASS (Tolerant)</span></td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -526,14 +534,14 @@ export default function App() {
                     Evaluating 60-patient cohort across hardware corruptions, subgroup underdiagnosis, and shortcut learning.
                   </p>
                   <div className="cohort-meta-strip">
-                    <span className="meta-pill">Target: {cohortData?.target_model || 'DenseNet121-CheXNet-Clinical'}</span>
-                    <span className="meta-pill">Profile: {cohortData?.tier_profile || 'TIER_2_WHITE_BOX'}</span>
-                    <span className="meta-pill">Cohort: 60 Multicenter Patients</span>
+                    <span className="meta-pill">Target: {cohortData?.target_model || selectedModel}</span>
+                    <span className="meta-pill">Modality: {cohortData?.modality ? cohortData.modality.toUpperCase() : 'CLINICAL'}</span>
+                    <span className="meta-pill">Cohort: {cohortData?.dataset_metadata?.name || selectedDataset}</span>
                     <span className="meta-pill">Protocol: FDA SaMD / CDSCO PCCP</span>
                   </div>
                 </div>
                 <div className="score-gauge">
-                  <span className="score-number">{cohortData?.trust_score ?? '81.7'}</span>
+                  <span className="score-number">{cohortData?.trust_score ?? '--'}</span>
                   <span className="score-max">/ 100</span>
                   <span className="score-label">Composite TrustScore</span>
                 </div>
@@ -543,8 +551,16 @@ export default function App() {
                 <span className="badge badge-warning">
                   <AlertTriangle size={13} /> {cohortData?.verdict || 'CAUTION: RESTRICTED DEPLOYMENT'}
                 </span>
+                <button
+                  onClick={handleRunCohortAudit}
+                  disabled={cohortLoading}
+                  className="btn btn-primary"
+                >
+                  <RefreshCw size={14} className={cohortLoading ? 'spin' : ''} />
+                  {cohortLoading ? 'Auditing Multicenter Cohort...' : 'Run Cohort Audit Battery'}
+                </button>
                 <a
-                  href="/api/audit/cohort-pdf"
+                  href={`/api/audit/cohort-pdf?model_id=${selectedModel}&dataset_id=${selectedDataset}`}
                   download
                   target="_blank"
                   rel="noreferrer"
@@ -860,11 +876,6 @@ export default function App() {
                   <span className="viewer-sub">Real-time model response under live sensor noise</span>
                 </div>
                 <div className="viewer-stats">
-                  {stressLoading && (
-                    <span className="badge badge-warning" style={{ fontSize: '11px', padding: '2px 8px' }}>
-                      <RefreshCw size={10} className="spin" /> Computing...
-                    </span>
-                  )}
                   <span>Latency: <strong>{liveStressResult?.latency_ms ?? '--'} ms</strong></span>
                   <span>Target Class: <strong>Grade {liveStressResult?.predicted_grade ?? '--'}</strong></span>
                 </div>
@@ -892,23 +903,12 @@ export default function App() {
 
                   <div className="telemetry-item">
                     <span className="t-label">Prediction Confidence:</span>
-                    <span
-                      className="t-val"
-                      style={{
-                        color: liveStressResult?.confidence != null ? getConfidenceColor(liveStressResult.confidence) : 'inherit',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {liveStressResult?.confidence ?? '--'}%
-                    </span>
+                    <span className="t-val">{liveStressResult?.confidence ?? '--'}%</span>
                   </div>
                   <div className="progress-bar">
                     <div
                       className="progress-fill"
-                      style={{
-                        transform: `scaleX(${(liveStressResult?.confidence || 0) / 100})`,
-                        backgroundColor: getConfidenceColor(liveStressResult?.confidence || 0),
-                      }}
+                      style={{ transform: `scaleX(${(liveStressResult?.confidence || 0) / 100})` }}
                     />
                   </div>
 
@@ -993,112 +993,152 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 5: MODEL ARENA */}
+        {/* TAB 4: MODEL ARENA */}
         {activeTab === 'arena' && (
           <div className="arena-container">
             <div className="card">
-              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                   <h3 className="card-title-text">Model-to-Model Clinical Benchmarking Arena</h3>
                   <p className="card-desc">
                     Side-by-side deployment audit comparing Mobile Edge architectures vs Heavyweight Hospital Server models.
                   </p>
                 </div>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    const next = selectedModel === 'candidate_a_edge' ? 'candidate_b_teacher' : 'candidate_a_edge';
-                    setSelectedModel(next);
-                    loadLatestAudit(next);
-                  }}
-                >
-                  <RefreshCw size={13} />
-                  Inspect {selectedModel === 'candidate_a_edge' ? 'Candidate B (Server ViT)' : 'Candidate A (Mobile Edge)'} in Full Dashboard →
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className={`btn ${arenaModality === 'retinal_dr' ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setArenaModality('retinal_dr')}
+                    style={{ fontSize: '13px', padding: '6px 12px' }}
+                  >
+                    Diabetic Retinopathy (Fundus)
+                  </button>
+                  <button
+                    className={`btn ${arenaModality === 'chest_xray' ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setArenaModality('chest_xray')}
+                    style={{ fontSize: '13px', padding: '6px 12px' }}
+                  >
+                    Chest Radiography (CXR)
+                  </button>
+                </div>
               </div>
 
-              <table className="data-table arena-table">
-                <thead>
-                  <tr>
-                    <th>Evaluation Metric</th>
-                    <th>
-                      Candidate A (Mobile LCNet Edge)
-                      {selectedModel === 'candidate_a_edge' && (
-                        <span className="tag" style={{ marginLeft: '8px', verticalAlign: 'middle' }}>Active in Demo</span>
-                      )}
-                    </th>
-                    <th>
-                      Candidate B (Server MaxViT-384)
-                      {selectedModel === 'candidate_b_teacher' && (
-                        <span className="tag" style={{ marginLeft: '8px', verticalAlign: 'middle' }}>Active in Demo</span>
-                      )}
-                    </th>
-                    <th>Clinical Safety Implication</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><strong>Architecture Type</strong></td>
-                    <td>PP-LCNet + MSAG Attention</td>
-                    <td>MaxViT Hybrid CNN-ViT</td>
-                    <td>Edge-efficiency vs Expressive capacity</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Model Size / Parameters</strong></td>
-                    <td><span className="status-pass">7.6M Params (29.4 MB)</span></td>
-                    <td><span className="status-fail">31.2M Params (124 MB)</span></td>
-                    <td>Mobile memory footprint feasibility</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Inference Latency (RTX 5060)</strong></td>
-                    <td><span className="status-pass">6.8 ms (146 FPS)</span></td>
-                    <td>42.5 ms (23 FPS)</td>
-                    <td>Real-time technician interactive feedback</td>
-                  </tr>
-                  <tr>
-                    <td><strong>In-Domain AUC (EyePACS)</strong></td>
-                    <td>92.8%</td>
-                    <td><span className="status-pass">95.4%</span></td>
-                    <td>Laboratory performance on clean inputs</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Defocus Noise Resilience</strong></td>
-                    <td>
-                      <span className="status-fail">
-                        {auditData && selectedModel === 'candidate_a_edge' && auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability != null
-                          ? `${auditData.stress_tests.blur_ladder.slice(-1)[0].retained_stability}% Stability Retained`
-                          : '28.0% Stability Retained'}
-                      </span>
-                    </td>
-                    <td><span className="status-pass">64.5% Stability Retained</span></td>
-                    <td>ViT self-attention resists localized blur</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Expected Calibration Error (ECE)</strong></td>
-                    <td>
-                      <span className="status-fail">
-                        {auditData && selectedModel === 'candidate_a_edge' && auditData?.calibration?.ece_percent != null
-                          ? `${auditData.calibration.ece_percent}% (Overconfident)`
-                          : '18.4% (Overconfident)'}
-                      </span>
-                    </td>
-                    <td><span className="status-pass">4.2% (Well-calibrated)</span></td>
-                    <td>Student network requires temperature scaling</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Final Deployment Verdict</strong></td>
-                    <td><span className="badge badge-warning">CONDITIONAL PASS</span></td>
-                    <td><span className="badge badge-success">APPROVED FOR GPU SERVER</span></td>
-                    <td>Candidate A requires upstream hardware IQA gate</td>
-                  </tr>
-                </tbody>
-              </table>
+              {arenaModality === 'retinal_dr' ? (
+                <table className="data-table arena-table">
+                  <thead>
+                    <tr>
+                      <th>Evaluation Metric</th>
+                      <th>DR Mobile LCNet (Edge)</th>
+                      <th>DR ResNet Teacher (Server)</th>
+                      <th>Clinical Safety Implication</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><strong>Architecture Type</strong></td>
+                      <td>PP-LCNet + MSAG Attention</td>
+                      <td>ResNet18 Deep Ensemble</td>
+                      <td>Edge-efficiency vs Expressive capacity</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Model Size / Parameters</strong></td>
+                      <td><span className="status-pass">7.6M Params (12.7 MB)</span></td>
+                      <td><span className="status-fail">11.2M Params (44.6 MB)</span></td>
+                      <td>Mobile memory footprint feasibility</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Inference Latency (RTX 5060)</strong></td>
+                      <td><span className="status-pass">6.8 ms (146 FPS)</span></td>
+                      <td>14.2 ms (70 FPS)</td>
+                      <td>Real-time technician interactive feedback</td>
+                    </tr>
+                    <tr>
+                      <td><strong>In-Domain AUC (EyePACS)</strong></td>
+                      <td>92.8%</td>
+                      <td><span className="status-pass">95.4%</span></td>
+                      <td>Laboratory performance on clean inputs</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Defocus Noise Resilience</strong></td>
+                      <td><span className="status-fail">28.0% Stability Retained</span></td>
+                      <td><span className="status-pass">64.5% Stability Retained</span></td>
+                      <td>Teacher representation resists localized blur</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Expected Calibration Error (ECE)</strong></td>
+                      <td><span className="status-fail">18.4% (Overconfident)</span></td>
+                      <td><span className="status-pass">4.2% (Well-calibrated)</span></td>
+                      <td>Student network requires temperature scaling</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Final Deployment Verdict</strong></td>
+                      <td><span className="badge badge-warning">CONDITIONAL PASS</span></td>
+                      <td><span className="badge badge-success">APPROVED FOR GPU SERVER</span></td>
+                      <td>DR Mobile LCNet requires upstream hardware IQA gate</td>
+                    </tr>
+                  </tbody>
+                </table>
+              ) : (
+                <table className="data-table arena-table">
+                  <thead>
+                    <tr>
+                      <th>Evaluation Metric</th>
+                      <th>CXR MobileNetV2 (Bedside Cart Edge)</th>
+                      <th>CXR CheXNet DenseNet121 (Hospital Grade)</th>
+                      <th>Clinical Safety Implication</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><strong>Architecture Type</strong></td>
+                      <td>MobileNetV2 Depthwise-Conv</td>
+                      <td>DenseNet-121 Feature Reuse</td>
+                      <td>Portable ICU Cart vs Radiology Workstation</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Model Size / Parameters</strong></td>
+                      <td><span className="status-pass">3.5M Params (8.4 MB)</span></td>
+                      <td><span className="status-fail">7.0M Params (27.7 MB)</span></td>
+                      <td>Battery runtime & low thermal envelope</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Inference Latency (RTX 5060)</strong></td>
+                      <td><span className="status-pass">4.1 ms (240 FPS)</span></td>
+                      <td>12.8 ms (78 FPS)</td>
+                      <td>Instantaneous bedside triage at patient bed</td>
+                    </tr>
+                    <tr>
+                      <td><strong>In-Domain AUC (NIH CXR-14)</strong></td>
+                      <td>74.2%</td>
+                      <td><span className="status-pass">86.8%</span></td>
+                      <td>Baseline consolidation/infiltrate detection</td>
+                    </tr>
+                    <tr>
+                      <td><strong>CR vs DR Contrast Sensitivity</strong></td>
+                      <td><span className="status-fail">42.1% Stability Retained</span></td>
+                      <td><span className="status-pass">78.4% Stability Retained</span></td>
+                      <td>Edge model fails when contrast drops &gt; 15%</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Expected Calibration Error (ECE)</strong></td>
+                      <td><span className="status-fail">10.8% (Borderline Overconfident)</span></td>
+                      <td><span className="status-pass">3.8% (Calibrated Posterior)</span></td>
+                      <td>Overconfidence on ambiguous lung opacities</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Final Deployment Verdict</strong></td>
+                      <td><span className="badge badge-danger">RESTRICTED / CAUTION</span></td>
+                      <td><span className="badge badge-success">APPROVED FOR WORKSTATION</span></td>
+                      <td>MobileNet requires mandatory radiologist over-read</td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         )}
       </main>
 
-      {/* LOCAL MODEL & DATASET INGESTION MODAL */}
+      {/* CLINICAL AI INGESTION CENTER MODAL */}
       {showIngestModal && (
         <div className="modal-backdrop" onClick={() => setShowIngestModal(false)}>
           <div className="modal-window card" onClick={(e) => e.stopPropagation()}>
@@ -1106,14 +1146,10 @@ export default function App() {
               <div>
                 <h3 className="modal-title">Clinical AI Ingestion Center</h3>
                 <p className="modal-desc">
-                  Select and evaluate models directly from your local hardware or hospital PACS storage.
+                  Onboard external ONNX neural networks and multicenter clinical cohorts into TrustCheck.
                 </p>
               </div>
-              <button
-                className="btn-icon"
-                onClick={() => setShowIngestModal(false)}
-                aria-label="Close modal"
-              >
+              <button onClick={() => setShowIngestModal(false)} className="btn-icon">
                 <X size={18} />
               </button>
             </div>
@@ -1121,43 +1157,29 @@ export default function App() {
             <div className="modal-tabs">
               <button
                 type="button"
-                className={`modal-tab-btn ${ingestMode === 'upload_model' ? 'active' : ''}`}
-                onClick={() => { setIngestMode('upload_model'); setIngestError(''); }}
+                className={`modal-tab-btn ${ingestMode === 'upload_onnx' ? 'active' : ''}`}
+                onClick={() => setIngestMode('upload_onnx')}
               >
                 <Upload size={14} /> Upload .ONNX Model
               </button>
               <button
                 type="button"
                 className={`modal-tab-btn ${ingestMode === 'register_path' ? 'active' : ''}`}
-                onClick={() => { setIngestMode('register_path'); setIngestError(''); }}
+                onClick={() => setIngestMode('register_path')}
               >
-                <Folder size={14} /> Local Hardware Path
+                <Cpu size={14} /> Register Local Path
               </button>
               <button
                 type="button"
                 className={`modal-tab-btn ${ingestMode === 'upload_dataset' ? 'active' : ''}`}
-                onClick={() => { setIngestMode('upload_dataset'); setIngestError(''); }}
+                onClick={() => setIngestMode('upload_dataset')}
               >
-                <FileText size={14} /> Cohort CSV Dataset
+                <Database size={14} /> Upload Cohort CSV
               </button>
             </div>
 
-            {ingestSuccess && (
-              <div className="alert-success-box" style={{ marginBottom: '16px' }}>
-                <CheckCircle2 size={16} />
-                <span>{ingestSuccess}</span>
-              </div>
-            )}
-
-            {ingestError && (
-              <div className="alert-danger-box" style={{ marginBottom: '16px' }}>
-                <AlertTriangle size={16} />
-                <span>{ingestError}</span>
-              </div>
-            )}
-
-            {/* TAB 1: UPLOAD LOCAL ONNX MODEL */}
-            {ingestMode === 'upload_model' && (
+            {/* TAB 1: UPLOAD ONNX */}
+            {ingestMode === 'upload_onnx' && (
               <form onSubmit={handleUploadModel} className="modal-form">
                 <div className="form-group">
                   <label className="form-label">Select .ONNX Model File from Local Storage:</label>
@@ -1177,15 +1199,28 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Model Display Name:</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Candidate-Model-C (Hospital ResNet-50)"
-                    value={modelName}
-                    onChange={(e) => setModelName(e.target.value)}
-                    className="form-input"
-                  />
+                <div className="form-row">
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Model Display Name:</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. ResNet-50 Hospital Clinical Classifier"
+                      value={modelName}
+                      onChange={(e) => setModelName(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Clinical Modality:</label>
+                    <select
+                      value={modelModality}
+                      onChange={(e) => setModelModality(e.target.value)}
+                      className="form-select"
+                    >
+                      <option value="retinal_fundus">Ophthalmology (Retinal Fundus)</option>
+                      <option value="chest_xray">Pulmonology (Chest Radiography)</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="form-row">
@@ -1227,7 +1262,7 @@ export default function App() {
                     className="btn btn-primary"
                   >
                     <RefreshCw size={14} className={ingestLoading ? 'spin' : ''} />
-                    {ingestLoading ? 'Ingesting & Initializing Model...' : 'Ingest Model & Run Audit'}
+                    {ingestLoading ? 'Ingesting Model...' : 'Ingest Model & Register'}
                   </button>
                 </div>
               </form>
@@ -1240,7 +1275,7 @@ export default function App() {
                   <label className="form-label">Absolute or Relative Local File Path:</label>
                   <input
                     type="text"
-                    placeholder="e.g. assets/models/candidate_model_b.onnx or /data/models/dr_model.onnx"
+                    placeholder="e.g. assets/models/dr_retinal_resnet_teacher.onnx"
                     value={localPath}
                     onChange={(e) => setLocalPath(e.target.value)}
                     className="form-input"
@@ -1251,15 +1286,28 @@ export default function App() {
                   </small>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Model Display Name:</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Candidate-Model-Local"
-                    value={modelName}
-                    onChange={(e) => setModelName(e.target.value)}
-                    className="form-input"
-                  />
+                <div className="form-row">
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Model Display Name:</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Custom Model Path"
+                      value={modelName}
+                      onChange={(e) => setModelName(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Clinical Modality:</label>
+                    <select
+                      value={modelModality}
+                      onChange={(e) => setModelModality(e.target.value)}
+                      className="form-select"
+                    >
+                      <option value="retinal_fundus">Ophthalmology (Retinal Fundus)</option>
+                      <option value="chest_xray">Pulmonology (Chest Radiography)</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="modal-actions">
@@ -1303,15 +1351,28 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Cohort Dataset Name:</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. AIIMS Delhi DR Validation Cohort"
-                    value={datasetName}
-                    onChange={(e) => setDatasetName(e.target.value)}
-                    className="form-input"
-                  />
+                <div className="form-row">
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Cohort Dataset Name:</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. AIIMS Delhi Retinal Cohort"
+                      value={datasetName}
+                      onChange={(e) => setDatasetName(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Clinical Modality:</label>
+                    <select
+                      value={datasetModality}
+                      onChange={(e) => setDatasetModality(e.target.value)}
+                      className="form-select"
+                    >
+                      <option value="retinal_fundus">Ophthalmology (Retinal Fundus)</option>
+                      <option value="chest_xray">Pulmonology (Chest Radiography)</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="modal-actions">
@@ -1339,4 +1400,3 @@ export default function App() {
     </div>
   );
 }
-

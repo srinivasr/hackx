@@ -1,7 +1,7 @@
 # TrustCheck: HLT-08 Architecture & Technical Implementation Report
 
 > **Specification**: MUJ HACKX 4.0 Problem Statement HLT-08 (Making Healthcare AI Safe to Deploy)  
-> **Framework**: TrustCheck Clinical AI Safety Harness  
+> **Repository**: `/home/lev/pro/trust-check`  
 > **Standards Compliance**: FDA SaMD (Software-as-a-Medical-Device), CDSCO Medical Device Rules, Predetermined Change Control Plan (PCCP)
 
 ---
@@ -170,7 +170,7 @@ Executed bare via `nix develop . --command env PYTHONPATH=. pytest -v tests/`:
 ```
 ============================= test session starts ==============================
 platform linux -- Python 3.11.16, pytest-9.1.1, pluggy-1.6.0
-rootdir: .
+rootdir: /home/lev/pro/trust-check
 
 tests/test_engines.py::test_robustness_perturbations PASSED              [ 10%]
 tests/test_engines.py::test_fairness_subgroup_disparity PASSED           [ 20%]
