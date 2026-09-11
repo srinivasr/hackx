@@ -143,6 +143,32 @@ def run_full_model_audit(
     # Use a primary reference sample for progressive degradation curves
     ref_key = "sample_clinical_pass" if "sample_clinical_pass" in sample_images else list(sample_images.keys())[0]
     ref_img = sample_images[ref_key]
+    base_ref = baseline_predictions[ref_key]
+
+    def compute_retention_stability(base_res: Dict[str, Any], p_res: Dict[str, Any], severity_pct: float) -> float:
+        """Calculates model-specific retained empirical stability under perturbation."""
+        base_p = np.array(base_res.get("probs", []), dtype=np.float32)
+        p_p = np.array(p_res.get("probs", []), dtype=np.float32)
+        
+        if len(base_p) > 0 and len(base_p) == len(p_p):
+            tvd = 0.5 * float(np.sum(np.abs(base_p - p_p)))
+            fidelity = max(0.0, 1.0 - tvd)
+        else:
+            fidelity = 0.5
+
+        if p_res.get("predicted_grade") == base_res.get("predicted_grade"):
+            class_cons = 1.0
+        else:
+            diff = abs(int(p_res.get("predicted_grade", 0)) - int(base_res.get("predicted_grade", 0)))
+            class_cons = max(0.15, 1.0 - 0.25 * diff)
+
+        base_conf = max(1.0, float(base_res.get("confidence", 50.0)))
+        conf_ratio = min(1.0, float(p_res.get("confidence", 50.0)) / base_conf)
+
+        raw_resilience = 0.50 * fidelity + 0.35 * class_cons + 0.15 * conf_ratio
+        attenuation = 1.0 - (severity_pct / 100.0) * (1.1 - 0.5 * raw_resilience)
+        stability = max(2.0, min(100.0, 100.0 * raw_resilience * max(0.05, attenuation)))
+        return round(float(stability), 1)
 
     stress_tests = {
         "blur_ladder": [],
@@ -155,12 +181,13 @@ def run_full_model_audit(
     for sigma in [0.0, 1.5, 3.0, 4.5, 6.0]:
         perturbed = apply_gaussian_blur(ref_img, sigma)
         p_res = evaluator.infer(perturbed)
+        severity = round(sigma / 6.0 * 100, 1)
         stress_tests["blur_ladder"].append({
             "param": f"σ={sigma:.1f}",
-            "severity": round(sigma / 6.0 * 100, 1),
+            "severity": severity,
             "predicted_grade": p_res["predicted_grade"],
             "confidence": p_res["confidence"],
-            "retained_stability": round(max(0.0, 100.0 - (sigma * 12.0)), 1),
+            "retained_stability": compute_retention_stability(base_ref, p_res, severity),
         })
 
     # Illumination Drop Stress
@@ -173,19 +200,20 @@ def run_full_model_audit(
             "severity": drop_pct,
             "predicted_grade": p_res["predicted_grade"],
             "confidence": p_res["confidence"],
-            "retained_stability": round(max(0.0, 100.0 - (drop_pct * 1.1)), 1),
+            "retained_stability": compute_retention_stability(base_ref, p_res, drop_pct),
         })
 
     # Corneal Glare Stress
     for intensity in [0.0, 0.25, 0.50, 0.75, 0.95]:
         perturbed = apply_corneal_glare(ref_img, intensity)
         p_res = evaluator.infer(perturbed)
+        severity = round(intensity * 100, 1)
         stress_tests["glare_ladder"].append({
             "param": f"int={intensity:.2f}",
-            "severity": round(intensity * 100, 1),
+            "severity": severity,
             "predicted_grade": p_res["predicted_grade"],
             "confidence": p_res["confidence"],
-            "retained_stability": round(max(0.0, 100.0 - (intensity * 90.0)), 1),
+            "retained_stability": compute_retention_stability(base_ref, p_res, severity),
         })
 
     # Resolution Scaling Stress
@@ -198,7 +226,7 @@ def run_full_model_audit(
             "severity": res_loss_pct,
             "predicted_grade": p_res["predicted_grade"],
             "confidence": p_res["confidence"],
-            "retained_stability": round(max(0.0, 100.0 - (res_loss_pct * 0.85)), 1),
+            "retained_stability": compute_retention_stability(base_ref, p_res, res_loss_pct),
         })
 
     # 4. Clinical Sanity & Shortcut Learning Discrepancy Checks

@@ -370,8 +370,8 @@ CXR_GROUND_TRUTH = {
 
 @app.post("/api/audit/run")
 def run_audit(model_id: str = Query("dr_lcnet_edge")):
-    evaluator = get_evaluator(model_id)
     canonical_id = MODEL_ALIASES.get(model_id, model_id)
+    evaluator = get_evaluator(canonical_id)
     entry = MODEL_REGISTRY.get(canonical_id, {})
     modality = entry.get("modality", "retinal_fundus")
     samples = load_test_samples(modality=modality)
@@ -387,7 +387,13 @@ def run_audit(model_id: str = Query("dr_lcnet_edge")):
     generate_deployment_certificate(audit_res, pdf_path)
 
     audit_res["certificate_url"] = f"/outputs/{pdf_filename}"
-    LATEST_AUDIT_CACHE[model_id] = audit_res
+    audit_res["model_id"] = canonical_id
+    audit_res["model_name"] = entry.get("name", canonical_id)
+    audit_res["modality"] = modality
+
+    LATEST_AUDIT_CACHE[canonical_id] = audit_res
+    if model_id != canonical_id:
+        LATEST_AUDIT_CACHE[model_id] = audit_res
     LATEST_AUDIT_CACHE["latest"] = audit_res
 
     return audit_res
@@ -395,11 +401,14 @@ def run_audit(model_id: str = Query("dr_lcnet_edge")):
 
 @app.get("/api/audit/latest")
 def get_latest_audit(model_id: Optional[str] = None):
-    key = model_id if model_id and model_id in LATEST_AUDIT_CACHE else "latest"
-    if key not in LATEST_AUDIT_CACHE:
-        # Run audit on-demand if cache is empty
-        return run_audit(model_id or "dr_lcnet_edge")
-    return LATEST_AUDIT_CACHE[key]
+    canonical_id = MODEL_ALIASES.get(model_id, model_id) if model_id else None
+    if canonical_id:
+        if canonical_id not in LATEST_AUDIT_CACHE:
+            return run_audit(canonical_id)
+        return LATEST_AUDIT_CACHE[canonical_id]
+    if "latest" in LATEST_AUDIT_CACHE:
+        return LATEST_AUDIT_CACHE["latest"]
+    return run_audit("dr_lcnet_edge")
 
 
 @app.get("/api/audit/certificate/{filename}")
