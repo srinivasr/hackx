@@ -127,8 +127,8 @@ with open(telemetry_file, "r") as f:
 # Global Telemetry Header Bar
 c1, c2, c3 = st.columns([2, 1, 1])
 with c1:
-    st.markdown(f"**Target Model:** `{data.get('target_model', 'N/A')}`")
-    st.markdown(f"**Audit Run ID:** `{data.get('audit_run_id', 'N/A')}` | Timestamp: `{data.get('timestamp', 'N/A')}`")
+    st.markdown(f"**Target Model:** `{data.get('target_model', 'N/A')}` | **Modality:** `{data.get('modality', 'chest_xray').replace('_', ' ').title()}`")
+    st.markdown(f"**Audit Tier:** `{data.get('tier_profile', 'TIER_2_WHITE_BOX')}` | Run ID: `{data.get('audit_run_id', 'N/A')}`")
 with c2:
     st.metric("Composite TrustScore", f"{data.get('trust_score', 0)} / 100")
 with c3:

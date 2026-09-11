@@ -252,6 +252,10 @@ class FairnessEngine:
             fpr = round(float(fp / negatives), 4) if negatives > 0 else 0.0
             pos_rate = round(float((grp["pred"] == 1).sum() / total), 4) if total > 0 else 0.0
 
+            # Statistical Power and Sample Size Sufficiency Audit
+            is_underpowered = bool(total < 30 or positives < 5)
+            power_status = "UNDERPOWERED_SUBGROUP" if is_underpowered else "ADEQUATELY_POWERED"
+
             metrics[val_str] = {
                 "sample_count": int(total),
                 "positive_count": int(positives),
@@ -260,6 +264,8 @@ class FairnessEngine:
                 "tpr": tpr,
                 "fpr": fpr,
                 "positive_rate": pos_rate,
+                "statistical_power_status": power_status,
+                "is_underpowered": is_underpowered,
             }
         return metrics
 
@@ -267,13 +273,26 @@ class FairnessEngine:
         self,
         embeddings: np.ndarray,
         site_labels: List[str],
+        tier_profile: str = "TIER_2_WHITE_BOX",
     ) -> Dict[str, Any]:
         """Calculates 2-sample Kolmogorov-Smirnov test, Maximum Mean Discrepancy (MMD),
-        and trains an Adversarial Domain Classifier.
+        and trains an Adversarial Domain Classifier across deployment sites.
+        
+        Gracefully adapts to:
+        - Tier 2 (White-Box): 1024-dim penultimate latent embeddings.
+        - Tier 1 (Black-Box): 16-dim observable input image domain statistics.
         """
         sites = list(set(site_labels))
+        domain_type = (
+            "PENULTIMATE_LATENT_EMBEDDINGS"
+            if tier_profile == "TIER_2_WHITE_BOX"
+            else "OBSERVABLE_INPUT_IMAGE_STATISTICS"
+        )
+
         if len(sites) < 2 or len(embeddings) < 10:
             return {
+                "tier_profile": tier_profile,
+                "covariate_shift_domain": domain_type,
                 "domain_shift_classifier_auroc": 0.50,
                 "ks_drift_p_value": 1.0,
                 "ks_statistic": 0.0,
@@ -346,10 +365,64 @@ class FairnessEngine:
         shift_score = max(0.0, min(100.0, 100.0 - shift_penalty))
 
         return {
+            "tier_profile": tier_profile,
+            "covariate_shift_domain": domain_type,
             "domain_shift_classifier_auroc": domain_auc,
             "ks_drift_p_value": round(min_p_val, 4),
             "ks_statistic": round(mean_ks_stat, 3),
             "latent_mmd_distance": mmd_val,
             "site_divergence_detected": shift_alarm,
             "shift_score": round(shift_score, 1),
+        }
+
+    def audit_demographic_latent_leakage(
+        self,
+        embeddings: np.ndarray,
+        demographic_labels: List[str],
+        tier_profile: str = "TIER_2_WHITE_BOX",
+    ) -> Dict[str, Any]:
+        """Tests whether patient demographic identity (Sex/Age) is strongly encoded in latent representations.
+        
+        Literature Grounding:
+        - Gichoya et al. (Lancet Digital Health 2022): Deep models inadvertently learn demographic
+          identifiers from medical scans, using demographic disease prevalence as a spurious shortcut.
+        """
+        unique_labels = list(set(demographic_labels))
+        if tier_profile != "TIER_2_WHITE_BOX" or len(unique_labels) < 2 or len(embeddings) < 20:
+            return {
+                "demographic_leakage_probed": False,
+                "leakage_auroc": 0.50,
+                "demographic_shortcut_risk": "NOT_PROBED_OR_BLACK_BOX",
+            }
+
+        label_map = {l: idx for idx, l in enumerate(sorted(unique_labels[:2]))}
+        mask = [lbl in label_map for lbl in demographic_labels]
+        y_demo = np.array([label_map[lbl] for lbl, m in zip(demographic_labels, mask) if m])
+        x_sub = embeddings[mask]
+
+        if len(set(y_demo)) < 2 or np.min(np.bincount(y_demo)) < 4:
+            return {
+                "demographic_leakage_probed": False,
+                "leakage_auroc": 0.50,
+                "demographic_shortcut_risk": "UNDERPOWERED",
+            }
+
+        try:
+            lr = LogisticRegression(max_iter=300, random_state=42)
+            skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+            aucs = []
+            for tr_idx, te_idx in skf.split(x_sub, y_demo):
+                lr.fit(x_sub[tr_idx], y_demo[tr_idx])
+                probs = lr.predict_proba(x_sub[te_idx])[:, 1]
+                aucs.append(roc_auc_score(y_demo[te_idx], probs))
+            mean_auc = float(np.mean(aucs))
+        except Exception:
+            mean_auc = 0.50
+
+        leakage_alarm = bool(mean_auc >= 0.75)
+        return {
+            "demographic_leakage_probed": True,
+            "leakage_auroc": round(mean_auc, 3),
+            "demographic_shortcut_risk": "HIGH_SHORTCUT_LEAKAGE" if leakage_alarm else "SAFE_DEMOGRAPHIC_INVARIANCE",
+            "leakage_detected": leakage_alarm,
         }

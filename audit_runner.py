@@ -21,6 +21,17 @@ from engines.model_interface import ClinicalModelWrapper
 from engines.robustness_engine import RobustnessEngine
 from engines.fairness_engine import FairnessEngine
 from engines.safety_engine import SafetyEngine
+from engines.clinical_utility import (
+    compute_decision_curve_analysis,
+    compute_prevalence_shift_ladder,
+    find_clinical_operating_points,
+)
+from engines.gaudit_engine import (
+    run_gaudit_analysis,
+    compute_selective_suppression_policy,
+    compute_clinical_mce,
+    compute_worst_group_metrics,
+)
 from reporting.pdf_generator import generate_dossier_pdf
 
 
@@ -36,6 +47,7 @@ def run_evaluation_suite(
     metadata_path: str,
     output_dir: str = "output/audit_run_01",
     config_path: str = "config/audit_thresholds.yaml",
+    modality: str = "chest_xray",
 ) -> Dict[str, Any]:
     start_time = time.time()
     os.makedirs(output_dir, exist_ok=True)
@@ -46,6 +58,7 @@ def run_evaluation_suite(
     print(f"==================================================================")
     print(f"Target Model:   {model_target}")
     print(f"Cohort Dataset: {metadata_path}")
+    print(f"Modality Suite: {modality.upper()}")
     print(f"Output Path:    {output_dir}")
 
     # 1. Ingestion & Registration Layer
@@ -88,17 +101,22 @@ def run_evaluation_suite(
         return c, p
 
     # 3. STEP 1: ENGINE A - Physics & Hardware Shift (Robustness)
-    print("Executing Step 1: Engine A (Physics corruptions & decay curves)...")
-    rob_engine = RobustnessEngine(intensity_tiers=cfg.get("engine_a_robustness", {}).get("intensity_tiers"))
+    print(f"Executing Step 1: Engine A (Physics corruptions for {modality})...")
+    rob_engine = RobustnessEngine(
+        intensity_tiers=cfg.get("engine_a_robustness", {}).get("intensity_tiers"),
+        modality=modality,
+    )
     robustness_results = rob_engine.evaluate_cohort(images, labels, predict_batch_fn)
 
     # 4. STEP 2: ENGINE B - Subgroup Bias & Covariate Shift Auditor
-    print("Executing Step 2: Engine B (Subgroup fairness slicing & site drift)...")
+    print(f"Executing Step 2: Engine B (Subgroup fairness & shift, profile={wrapper.tier_profile})...")
     fair_engine = FairnessEngine(
         alarm_classifier_auc=cfg.get("engine_b_fairness", {}).get("adversarial_classifier_alarm_auc", 0.65)
     )
     fairness_results = fair_engine.slice_cohort(meta_df, clean_preds, clean_confs, labels_arr)
-    drift_results = fair_engine.detect_latent_distribution_drift(embeddings, meta_df["site_id"].tolist())
+    drift_results = fair_engine.detect_latent_distribution_drift(
+        embeddings, meta_df["site_id"].tolist(), tier_profile=wrapper.tier_profile
+    )
 
     fairness_and_shift = {
         **fairness_results,
@@ -116,7 +134,26 @@ def run_evaluation_suite(
         clean_confs, clean_preds, labels_arr, embeddings=embeddings, patient_ids=patient_ids
     )
 
-    # 6. Deterministic Composite Scorer & Gating Logic
+    # 6. Clinical Utility, Decision Curve Analysis (DCA) & Prevalence Shift Simulator
+    print("Executing Decision Curve Analysis (DCA) & Prevalence Shift Stress Test...")
+    dca_results = compute_decision_curve_analysis(labels_arr, clean_confs)
+    operating_points = find_clinical_operating_points(labels_arr, clean_confs)
+    prevalence_simulation = compute_prevalence_shift_ladder(
+        sensitivity=operating_points.get("youden_sensitivity", 0.80),
+        specificity=operating_points.get("youden_specificity", 0.80),
+    )
+    demographic_leakage = fair_engine.audit_demographic_latent_leakage(
+        embeddings, meta_df["sex"].tolist(), tier_profile=wrapper.tier_profile
+    )
+
+    # 7. G-AUDIT, Selective Triage Suppression & Worst-Group Benchmarks
+    print("Executing G-AUDIT (FDA/JHU 2025) & Selective Suppression Policy (JAMIA 2023)...")
+    gaudit_report = run_gaudit_analysis(embeddings, meta_df, labels_arr)
+    suppression_policy = compute_selective_suppression_policy(clean_confs, clean_preds, labels_arr)
+    cmce_report = compute_clinical_mce(robustness_results["decay_slopes"])
+    worst_group = compute_worst_group_metrics(fairness_results["slices"])
+
+    # 8. Deterministic Composite Scorer & Gating Logic
     weights = cfg.get("scoring_weights", {"robustness": 0.35, "fairness": 0.30, "calibration": 0.20, "shift": 0.15})
     trust_score = safety_engine.compute_composite_trust_score(
         robustness_score=robustness_results["robustness_score"],
@@ -126,10 +163,7 @@ def run_evaluation_suite(
         weights=weights,
     )
 
-    contrast_decay_fail = (
-        len(robustness_results["decay_slopes"]["contrast_attenuation"]) >= 3
-        and robustness_results["decay_slopes"]["contrast_attenuation"][2] < 0.70
-    )
+    contrast_decay_fail = robustness_results.get("contrast_decay_failure", False)
 
     verdict, contraindications = safety_engine.evaluate_gating(
         trust_score=trust_score,
@@ -139,16 +173,42 @@ def run_evaluation_suite(
         contrast_decay_failure=contrast_decay_fail,
     )
 
-    # 7. Standardized Telemetry Compilation
+    if prevalence_simulation.get("collapse_detected", False):
+        contraindications.append(
+            f"CAUTION: High alert fatigue risk in outpatient triage. Positive Predictive Value collapses below 50% when disease prevalence drops < {prevalence_simulation.get('prevalence_collapse_point', 0.05)*100:.0f}%."
+        )
+
+    if demographic_leakage.get("leakage_detected", False):
+        contraindications.append(
+            f"ETHICS RISK: Demographic identity leakage detected in latent representations (Sex decoding AUROC: {demographic_leakage.get('leakage_auroc', 0.5):.2f} >= 0.75). Model may exploit demographic prevalence shortcuts."
+        )
+
+    if gaudit_report.get("has_shortcut_hazard", False):
+        for sc in gaudit_report.get("high_risk_shortcuts", []):
+            contraindications.append(
+                f"G-AUDIT SHORTCUT HAZARD: Attribute '{sc['attribute']}' is both highly detectable (AUC {sc['detectability_auc']:.2f}) and correlated with diagnosis (AUC {sc['utility_auc']:.2f}). High spurious shortcut risk."
+            )
+
+    # 9. Standardized Telemetry Compilation
     run_id = f"tc_run_{int(time.time())}_{wrapper.model_name.lower().replace(' ', '_')[:16]}"
     telemetry = {
         "audit_run_id": run_id,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "target_model": wrapper.model_name,
+        "modality": modality,
+        "tier_profile": wrapper.tier_profile,
         "metrics": {
             "robustness": robustness_results,
             "fairness_and_shift": fairness_and_shift,
             "calibration_and_uncertainty": cal_results,
+            "clinical_utility_dca": dca_results,
+            "clinical_operating_points": operating_points,
+            "prevalence_shift_simulation": prevalence_simulation,
+            "demographic_latent_leakage": demographic_leakage,
+            "gaudit_shortcut_risk": gaudit_report,
+            "selective_suppression_policy": suppression_policy,
+            "clinical_mce": cmce_report,
+            "worst_group_benchmarks": worst_group,
         },
         "trust_score": trust_score,
         "verdict": verdict,
@@ -192,6 +252,7 @@ def main():
     parser.add_argument("--metadata", type=str, default="data/sample_metadata.csv", help="Cohort metadata CSV path")
     parser.add_argument("--output-dir", type=str, default="output/audit_run_01", help="Directory for telemetry JSON and PDF dossier")
     parser.add_argument("--config", type=str, default="config/audit_thresholds.yaml", help="Audit thresholds configuration YAML")
+    parser.add_argument("--modality", type=str, default="chest_xray", choices=["chest_xray", "retinal_fundus", "tabular_ehr"], help="Clinical Modality Perturbation Suite")
 
     args = parser.parse_args()
     try:
@@ -200,6 +261,7 @@ def main():
             metadata_path=args.metadata,
             output_dir=args.output_dir,
             config_path=args.config,
+            modality=args.modality,
         )
     except Exception as e:
         print(f"Error during audit run: {e}", file=sys.stderr)

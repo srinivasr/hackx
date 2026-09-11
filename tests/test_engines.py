@@ -193,6 +193,136 @@ def test_composite_trust_score_math():
     assert verdict == "CAUTION_RESTRICTED_DEPLOYMENT"
 
 
+def test_two_tier_profile_and_domain_statistics(dummy_scan):
+    # Tier 1 (Black-Box): Test extraction of 16-dim domain feature statistics
+    from engines.model_interface import extract_input_image_statistics, ClinicalModelWrapper
+    stats = extract_input_image_statistics(dummy_scan)
+    assert stats.shape == (16,)
+    assert not np.isnan(stats).any()
+
+    # Verify Black-Box wrapper sets tier profile properly
+    bb_wrapper = ClinicalModelWrapper("http://localhost:9999/predict")
+    assert bb_wrapper.tier_profile == "TIER_1_BLACK_BOX"
+
+
+def test_pluggable_modality_suites(dummy_scan):
+    # Test OphthalmologySuite (Retinal Fundus)
+    from engines.modality_suites import OphthalmologySuite, TabularEHRSuite, get_modality_suite
+    oph_suite = get_modality_suite("retinal_fundus")
+    assert oph_suite.name == "retinal_fundus"
+    haze = oph_suite.apply_cataract_haze(dummy_scan, severity=3)
+    assert haze.shape == dummy_scan.shape
+
+    vignette = oph_suite.apply_illumination_vignette(dummy_scan, severity=3)
+    assert vignette.shape == dummy_scan.shape
+
+    # Test TabularEHRSuite
+    tab_suite = get_modality_suite("tabular_ehr")
+    features = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    noisy = tab_suite.inject_sensor_noise(features, severity=2)
+    assert noisy.shape == features.shape
+
+
+def test_non_compensatory_hard_safety_vetoes():
+    # Scenario 1: High composite TrustScore (85.0) overridden by > 2.0x demographic disparity
+    verdict, contraindications = SafetyEngine.evaluate_gating(
+        trust_score=85.0,
+        max_subgroup_disparity=2.45,  # Fatal demographic disparity
+        critical_silent_failures_count=0,
+        total_samples=100,
+    )
+    assert verdict == "NO_GO_REJECTED"
+    assert any("HARD SAFETY VETO" in c for c in contraindications)
+    assert any("2.45x" in c for c in contraindications)
+
+    # Scenario 2: Zero-tolerance breach on high-confidence false-negative miss
+    verdict2, contraindications2 = SafetyEngine.evaluate_gating(
+        trust_score=88.0,
+        max_subgroup_disparity=1.10,
+        critical_silent_failures_count=1,  # 1 silent false negative in active pathology
+        total_samples=100,
+    )
+    assert verdict2 == "NO_GO_REJECTED"
+    assert any("Zero-tolerance breach" in c for c in contraindications2)
+
+
+def test_decision_curve_analysis_and_prevalence_shift():
+    from engines.clinical_utility import (
+        compute_decision_curve_analysis,
+        compute_prevalence_shift_ladder,
+        find_clinical_operating_points,
+    )
+    labels = np.array([1, 1, 1, 1, 0, 0, 0, 0, 0, 0])
+    confs = np.array([0.9, 0.8, 0.85, 0.7, 0.1, 0.2, 0.15, 0.05, 0.3, 0.4])
+
+    dca = compute_decision_curve_analysis(labels, confs)
+    assert "dca_points" in dca
+    assert len(dca["dca_points"]) > 0
+
+    op = find_clinical_operating_points(labels, confs)
+    assert "youden_optimal_threshold" in op
+    assert "high_sensitivity_95_threshold" in op
+    assert 0.0 <= op["youden_optimal_threshold"] <= 1.0
+
+    prev_sim = compute_prevalence_shift_ladder(sensitivity=0.90, specificity=0.85)
+    assert "prevalence_ladder" in prev_sim
+    assert len(prev_sim["prevalence_ladder"]) > 0
+    # Rare prevalence (2%) should exhibit significant false alarm rate
+    rare = prev_sim["prevalence_ladder"][0]
+    assert rare["alert_fatigue_false_alarm_pct"] > 50.0
+
+
+def test_demographic_latent_leakage():
+    engine = FairnessEngine()
+    np.random.seed(42)
+    # Generate 30 embeddings where features strongly predict sex
+    emb_f = np.random.normal(0.0, 1.0, size=(15, 32))
+    emb_m = np.random.normal(2.5, 1.0, size=(15, 32))
+    embeddings = np.vstack([emb_f, emb_m])
+    sex_labels = ["F"] * 15 + ["M"] * 15
+
+    leak_res = engine.audit_demographic_latent_leakage(embeddings, sex_labels)
+    assert leak_res["demographic_leakage_probed"] is True
+    assert leak_res["leakage_auroc"] >= 0.75
+    assert leak_res["leakage_detected"] is True
+    assert leak_res["demographic_shortcut_risk"] == "HIGH_SHORTCUT_LEAKAGE"
+
+
+def test_gaudit_and_selective_suppression(dummy_cohort_df):
+    from engines.gaudit_engine import (
+        run_gaudit_analysis,
+        compute_selective_suppression_policy,
+        compute_clinical_mce,
+        compute_worst_group_metrics,
+    )
+    np.random.seed(42)
+    embeddings = np.random.normal(0, 1, size=(len(dummy_cohort_df), 32))
+    labels = dummy_cohort_df["ground_truth"].values
+    confs = np.random.uniform(0.1, 0.9, size=len(dummy_cohort_df))
+    preds = (confs >= 0.50).astype(int)
+
+    # 1. G-AUDIT
+    gaudit = run_gaudit_analysis(embeddings, dummy_cohort_df, labels)
+    assert "gaudit_matrix" in gaudit
+    assert "sex" in gaudit["gaudit_matrix"]
+
+    # 2. Selective suppression policy (JAMIA 2023)
+    policy = compute_selective_suppression_policy(confs, preds, labels)
+    assert "suppression_ladder" in policy
+    assert len(policy["suppression_ladder"]) > 0
+
+    # 3. cMCE (Hendrycks & Dietterich 2019)
+    decay_slopes = {"contrast": [0.8, 0.75, 0.7, 0.6, 0.5]}
+    cmce = compute_clinical_mce(decay_slopes)
+    assert "clinical_mean_corruption_error_cmce" in cmce
+
+    # 4. Worst-group metrics (WILDS ICML 2021)
+    slices = {"sex": {"F": {"fnr": 0.3, "sample_count": 10}, "M": {"fnr": 0.1, "sample_count": 10}}}
+    wg = compute_worst_group_metrics(slices)
+    assert wg["worst_group_fnr"] == 0.3
+    assert wg["worst_performing_group"] == "sex:F"
+
+
 def test_end_to_end_audit_runner(tmp_path):
     metadata_csv = "data/sample_metadata.csv"
     if not os.path.exists(metadata_csv):

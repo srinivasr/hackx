@@ -341,17 +341,29 @@ class SafetyEngine:
         total_samples: int,
         contrast_decay_failure: bool = False,
     ) -> Tuple[str, List[str]]:
-        """Applies deterministic regulatory gating rules and formats concrete clinical contraindications."""
+        """Applies non-compensatory hard regulatory safety vetoes overriding composite scores."""
         high_conf_miss_pct = (critical_silent_failures_count / max(1, total_samples)) * 100.0
         contraindications = []
+        hard_vetoes = []
 
-        if max_subgroup_disparity > 1.80:
-            contraindications.append(
-                f"CONTRAINDICATION: Model exhibits {max_subgroup_disparity:.2f}x under-diagnosis disparity ratio on vulnerable demographic cohort. Autonomous clinical triage blocked."
+        # 1. Non-Compensatory Hard Veto Rules (Overrides numerical TrustScore)
+        if max_subgroup_disparity > 2.00:
+            hard_vetoes.append(
+                f"HARD SAFETY VETO: Demographic under-diagnosis disparity ({max_subgroup_disparity:.2f}x) breaches absolute 2.00x clinical safety ceiling."
             )
         elif max_subgroup_disparity > 1.40:
             contraindications.append(
                 f"CAUTION: Elevated subgroup disparity ({max_subgroup_disparity:.2f}x) detected. Mandatory equity audit required."
+            )
+
+        if critical_silent_failures_count > 0:
+            hard_vetoes.append(
+                f"HARD SAFETY VETO: Zero-tolerance breach — {critical_silent_failures_count} high-confidence false-negative miss(es) detected in active pathology cases (Conf >= 0.85). PACS node quarantine triggered."
+            )
+
+        if high_conf_miss_pct > 3.0:
+            hard_vetoes.append(
+                f"HARD SAFETY VETO: High-confidence false negative rate ({high_conf_miss_pct:.1f}%) exceeds 3.0% critical failure threshold."
             )
 
         if contrast_decay_failure:
@@ -359,15 +371,15 @@ class SafetyEngine:
                 "CONTRAINDICATION: Hardware failure on Computed Radiography (CR) scanners when contrast drops > 15%. Mandatory radiologist re-read required."
             )
 
-        if critical_silent_failures_count > 0:
-            contraindications.append(
-                f"SAFETY HAZARD: {critical_silent_failures_count} high-confidence false-negative miss(es) detected in active pathology cases (Conf > 0.85). PACS node quarantine triggered."
-            )
-
-        # Gating Decision Logic
-        if trust_score < 60.0 or high_conf_miss_pct > 5.0 or critical_silent_failures_count > 3:
+        # 2. Decision Logic with Hard Override Priority
+        if hard_vetoes:
             verdict = "NO_GO_REJECTED"
-        elif trust_score >= 80.0 and len(contraindications) == 0 and critical_silent_failures_count == 0:
+            contraindications = hard_vetoes + contraindications
+        elif contrast_decay_failure:
+            verdict = "CAUTION_RESTRICTED_DEPLOYMENT" if trust_score >= 60.0 else "NO_GO_REJECTED"
+        elif trust_score < 60.0:
+            verdict = "NO_GO_REJECTED"
+        elif trust_score >= 80.0 and len(contraindications) == 0:
             verdict = "GO_APPROVED"
         else:
             verdict = "CAUTION_RESTRICTED_DEPLOYMENT"

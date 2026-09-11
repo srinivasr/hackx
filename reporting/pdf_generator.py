@@ -124,12 +124,14 @@ def generate_dossier_pdf(telemetry: Dict[str, Any], output_pdf_path: str) -> str
 
     # 2. Cryptographic Attestation Block
     model_name = telemetry.get("target_model", "DenseNet121-CheXNet")
+    modality = telemetry.get("modality", "chest_xray").replace("_", " ").title()
+    tier_profile = telemetry.get("tier_profile", "TIER_2_WHITE_BOX")
     model_hash = compute_sha256(str(model_name))
     data_hash = compute_sha256(str(telemetry.get("metrics", {})))
     crypto_data = [
         [
-            Paragraph(f"<b>Target Model:</b> {model_name} (SHA-256: <font name='Courier'>{model_hash}</font>)", body_style),
-            Paragraph(f"<b>Validation Cohort SHA-256:</b> <font name='Courier'>{data_hash}</font>", body_style),
+            Paragraph(f"<b>Target Model:</b> {model_name} | <b>Modality:</b> {modality} (SHA-256: <font name='Courier'>{model_hash}</font>)", body_style),
+            Paragraph(f"<b>Audit Tier:</b> {tier_profile} | <b>Cohort Hash:</b> <font name='Courier'>{data_hash}</font>", body_style),
         ]
     ]
     crypto_table = Table(crypto_data, colWidths=[310, 230])
