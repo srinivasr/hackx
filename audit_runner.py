@@ -11,7 +11,7 @@ import sys
 import json
 import time
 import argparse
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import cv2
 import yaml
 import numpy as np
@@ -48,6 +48,7 @@ def run_evaluation_suite(
     output_dir: str = "output/audit_run_01",
     config_path: str = "config/audit_thresholds.yaml",
     modality: str = "chest_xray",
+    model_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     start_time = time.time()
     os.makedirs(output_dir, exist_ok=True)
@@ -56,7 +57,7 @@ def run_evaluation_suite(
     print(f"==================================================================")
     print(f"  🛡️  TrustCheck: Clinical AI Pre-Deployment Audit Battery")
     print(f"==================================================================")
-    print(f"Target Model:   {model_target}")
+    print(f"Target Model:   {model_name or model_target}")
     print(f"Cohort Dataset: {metadata_path}")
     print(f"Modality Suite: {modality.upper()}")
     print(f"Output Path:    {output_dir}")
@@ -96,7 +97,7 @@ def run_evaluation_suite(
     labels_arr = np.array(labels)
 
     # 2. Target Model Ingestion
-    wrapper = ClinicalModelWrapper(model_target)
+    wrapper = ClinicalModelWrapper(model_target, model_name=model_name)
     print("Running baseline inference & feature extraction...")
     clean_confs, clean_preds, embeddings = wrapper.infer_batch(samples, patient_ids)
 

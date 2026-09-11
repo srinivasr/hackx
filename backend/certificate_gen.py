@@ -1,4 +1,6 @@
 import os
+import json
+import hashlib
 from typing import Dict, Any
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -105,6 +107,39 @@ def generate_deployment_certificate(audit_data: Dict[str, Any], output_pdf_path:
     elements.append(HRFlowable(width="100%", thickness=1.5, color=SLATE_300, spaceAfter=12))
 
     # 2. Candidate Model Metadata
+    modality = str(audit_data.get("modality", "retinal_fundus"))
+    if modality == "chest_xray":
+        eval_standard = "Thoracic Radiography Perturbation & Calibration Suite v1.0"
+        sample_unit = "multi-cohort chest radiographs"
+        stress_section_title = "1. Radiological Stress-Testing & Robustness Degradation"
+    elif modality == "clinical_nlp":
+        eval_standard = "Clinical NLP Syntactic & Assertion Perturbation Suite v1.0"
+        sample_unit = "multi-center clinical EHR records"
+        stress_section_title = "1. Clinical NLP Perturbation & Robustness Degradation"
+    elif modality in ["dermatology_dermoscopy", "dermatology"]:
+        eval_standard = "Dermoscopy Optical & Sensor Stress Suite v1.0"
+        sample_unit = "ISIC multi-cohort skin lesion scans"
+        stress_section_title = "1. Dermoscopy Stress-Testing & Robustness Degradation"
+    elif modality in ["digital_pathology", "histopathology"]:
+        eval_standard = "Whole Slide Imaging Stain & Defocus Suite v1.0"
+        sample_unit = "multi-center digital histology patches"
+        stress_section_title = "1. Histopathology Stress-Testing & Stain Invariance"
+    else:
+        eval_standard = "Optical Perturbation & Calibration Suite v1.0"
+        sample_unit = "multi-cohort retinal fundus scans"
+        stress_section_title = "1. Optical Stress-Testing & Robustness Degradation"
+
+    data_hash = hashlib.sha256(
+        json.dumps({
+            "audit_id": audit_data.get("audit_id"),
+            "model_name": audit_data.get("model_name"),
+            "timestamp": audit_data.get("timestamp"),
+            "verdict": audit_data.get("verdict"),
+            "readiness_score": audit_data.get("readiness_score"),
+            "ece": audit_data.get("calibration", {}).get("ece_percent"),
+        }, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()[:16]
+
     meta_data = [
         [
             Paragraph("<b>Candidate Model:</b>", bold_label),
@@ -114,9 +149,15 @@ def generate_deployment_certificate(audit_data: Dict[str, Any], output_pdf_path:
         ],
         [
             Paragraph("<b>Evaluation Standard:</b>", bold_label),
-            Paragraph("Optical Perturbation & Calibration Suite v1.0", body_style),
+            Paragraph(eval_standard, body_style),
             Paragraph("<b>Samples Audited:</b>", bold_label),
-            Paragraph(f"{audit_data.get('samples_audited', 0)} multi-cohort scans", body_style),
+            Paragraph(f"{audit_data.get('samples_audited', 0)} {sample_unit}", body_style),
+        ],
+        [
+            Paragraph("<b>Clinical Modality:</b>", bold_label),
+            Paragraph(modality.replace("_", " ").title(), body_style),
+            Paragraph("<b>Authenticity Hash:</b>", bold_label),
+            Paragraph(f"<font name='Courier' color='#2563EB'>{data_hash}</font> (SHA-256)", body_style),
         ],
     ]
     meta_table = Table(meta_data, colWidths=[110, 150, 110, 150])
@@ -124,8 +165,8 @@ def generate_deployment_certificate(audit_data: Dict[str, Any], output_pdf_path:
         ("BACKGROUND", (0, 0), (-1, -1), SLATE_50),
         ("BOX", (0, 0), (-1, -1), 1, SLATE_300),
         ("INNERGRID", (0, 0), (-1, -1), 0.5, SLATE_300),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
     ]))
     elements.append(meta_table)
     elements.append(Spacer(1, 14))
@@ -162,7 +203,7 @@ def generate_deployment_certificate(audit_data: Dict[str, Any], output_pdf_path:
     elements.append(Spacer(1, 14))
 
     # 4. Stress Test Results Table
-    elements.append(Paragraph("<b>1. Optical Stress-Testing & Robustness Degradation</b>", section_head_style))
+    elements.append(Paragraph(f"<b>{stress_section_title}</b>", section_head_style))
     elements.append(Spacer(1, 6))
 
     stress_rows = [
@@ -273,9 +314,16 @@ def generate_deployment_certificate(audit_data: Dict[str, Any], output_pdf_path:
         )
         for d in discrepancies[:3]:  # Top 3
             v_type = d.get("violation_type", "VIOLATION").replace("_", " ")
+            grade_val = d.get('predicted_grade', 0)
+            if modality == "chest_xray":
+                pred_desc = "Class 0 (Normal / Clear)" if grade_val == 0 else f"Class {grade_val}"
+            elif modality == "clinical_nlp":
+                pred_desc = "Low Risk Triage" if grade_val == 0 else "Acute Risk"
+            else:
+                pred_desc = f"Grade {grade_val}"
             disc_rows.append([
                 Paragraph(d.get("sample_id", "Unknown"), body_style),
-                Paragraph(f"Grade {d.get('predicted_grade', 0)}", body_style),
+                Paragraph(pred_desc, body_style),
                 Paragraph(d.get("evidence", "Lesions"), body_style),
                 Paragraph(f"<b>{v_type}</b>", violation_style),
             ])

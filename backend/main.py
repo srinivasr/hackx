@@ -734,6 +734,7 @@ def run_cohort_audit(
         metadata_path=dataset_meta["path"],
         output_dir=output_dir,
         modality=dataset_meta["modality"],
+        model_name=model_meta.get("name", model_id),
     )
 
     telemetry["requested_model_id"] = model_id
@@ -741,6 +742,27 @@ def run_cohort_audit(
     telemetry["model_metadata"] = model_meta
     telemetry["dataset_metadata"] = dataset_meta
     return telemetry
+
+
+@app.get("/api/audit/certificate-download")
+def download_model_certificate(model_id: str = Query("dr_lcnet_edge")):
+    """Downloads FDA/CDSCO deployment audit certificate PDF for selected model."""
+    canonical_id = MODEL_ALIASES.get(model_id, model_id)
+    audit_res = LATEST_AUDIT_CACHE.get(canonical_id)
+    if not audit_res:
+        audit_res = run_audit(model_id=canonical_id)
+
+    cert_url = audit_res.get("certificate_url")
+    if cert_url:
+        safe_filename = os.path.basename(cert_url)
+        path = os.path.join("outputs", safe_filename)
+        if os.path.exists(path):
+            return FileResponse(
+                path,
+                media_type="application/pdf",
+                filename=f"TrustCheck_Certificate_{canonical_id}.pdf",
+            )
+    raise HTTPException(status_code=404, detail="Certificate could not be generated.")
 
 
 @app.get("/api/audit/cohort-pdf")
@@ -762,12 +784,7 @@ def get_cohort_pdf(
             filename = f"TrustCheck_Dossier_{model_id}_{dataset_meta['id']}.pdf"
             return FileResponse(target_pdf, media_type="application/pdf", filename=filename)
     except Exception as e:
-        pass
+        print(f"Cohort audit generation error: {e}")
 
-    # Fallback to existing sample certificate
-    if os.path.exists("outputs/TrustCheck_Certificate_Sample.pdf"):
-        filename = f"TrustCheck_Dossier_{model_id}_{dataset_meta['id']}.pdf"
-        return FileResponse("outputs/TrustCheck_Certificate_Sample.pdf", media_type="application/pdf", filename=filename)
-
-    raise HTTPException(status_code=404, detail="Audit dossier PDF not generated yet.")
+    raise HTTPException(status_code=404, detail=f"Audit dossier PDF for {model_id} on {dataset_meta['id']} could not be generated.")
 
