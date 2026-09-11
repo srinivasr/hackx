@@ -199,6 +199,7 @@ def register_model_path(
     }
     if model_id in evaluator_instances:
         del evaluator_instances[model_id]
+    LATEST_AUDIT_CACHE.pop(model_id, None)
     return {"status": "registered", "model": MODEL_REGISTRY[model_id]}
 
 
@@ -233,6 +234,7 @@ async def upload_model(
     }
     if model_id in evaluator_instances:
         del evaluator_instances[model_id]
+    LATEST_AUDIT_CACHE.pop(model_id, None)
     return {
         "status": "uploaded_and_registered",
         "model_id": model_id,
