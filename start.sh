@@ -57,13 +57,22 @@ print('Certificate generated at outputs/TrustCheck_Certificate_Sample.pdf')
 echo "Launching Interactive Clinical AI Safety Dashboard (Streamlit)..."
 nix develop "$SCRIPT_DIR" --command streamlit run reporting/dashboard.py -- --telemetry-path output/audit_run_01/telemetry.json
 ;;
+6)
+echo "Executing Diabetic Retinopathy (Retinal Fundus) Audit Battery..."
+nix develop "$SCRIPT_DIR" --command python3 audit_runner.py \
+    --model assets/models/candidate_model_a.onnx \
+    --metadata data/sample_retinal_metadata.csv \
+    --modality retinal_fundus \
+    --output-dir output/audit_run_retinal_dr
+;;
 *)
-echo "Usage: ./start.sh [1|2|3|4|5]"
+echo "Usage: ./start.sh [1|2|3|4|5|6]"
 echo "  1) Run pytest test suite"
-echo "  2) Run HLT-08 clinical audit battery (CLI)"
+echo "  2) Run HLT-08 clinical audit battery (CheXNet X-Ray)"
 echo "  3) Launch full stack (FastAPI + Vite UI)"
 echo "  4) Generate retinal demo PDF certificate"
 echo "  5) Launch Streamlit Auditor Dashboard"
+echo "  6) Run Diabetic Retinopathy (Retinal Fundus ONNX) audit battery"
 exit 1
 ;;
 esac
