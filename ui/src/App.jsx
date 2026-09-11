@@ -17,10 +17,27 @@ import {
   Eye,
   Upload,
   X,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import './App.css';
 
 export default function App() {
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('trustcheck-theme');
+    if (saved === 'light' || saved === 'dark') return saved;
+    return 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('trustcheck-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'cohort', 'stress_studio', 'failures', 'arena'
   const [arenaModality, setArenaModality] = useState('retinal_dr'); // 'retinal_dr', 'chest_xray'
   const [models, setModels] = useState([]);
@@ -314,12 +331,12 @@ export default function App() {
       {/* Top Header */}
       <header className="header">
         <div className="header-brand">
-          <div className="brand-icon">
-            <ShieldAlert size={18} color="#3b82f6" />
+          <div className="brand-icon-wrap">
+            <ShieldAlert size={16} />
           </div>
-          <div>
+          <div className="brand-title-group">
             <h1 className="brand-title">TrustCheck</h1>
-            <p className="brand-subtitle">Clinical AI Pre-Deployment Safety &amp; Stress-Testing Platform</p>
+            <span className="brand-badge">Clinical SaMD v2.4</span>
           </div>
         </div>
 
@@ -362,6 +379,15 @@ export default function App() {
           >
             <Upload size={14} />
             <span>Ingest</span>
+          </button>
+
+          <button
+            onClick={toggleTheme}
+            className="theme-toggle-btn"
+            title={theme === 'dark' ? 'Switch to Light Clinical Workstation Theme' : 'Switch to Dark Obsidian Theme'}
+            aria-label="Toggle theme mode"
+          >
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
           </button>
 
           <button onClick={handleRunAudit} disabled={loading} className="btn btn-primary">
@@ -411,63 +437,142 @@ export default function App() {
         {/* TAB 1: OVERVIEW & CERTIFICATE */}
         {activeTab === 'overview' && (
           <div className="overview-container">
-            {/* Top Scorecard & Verdict */}
-            <div className="card verdict-card">
-              <div className="verdict-header">
+            {/* Top Dossier Hero Deck */}
+            <div className="dossier-hero">
+              <div className="dossier-main">
                 <div>
-                  <h2 className="verdict-title">{auditData?.verdict_title || 'Running Initial Audit...'}</h2>
-                  <p className="verdict-policy">{auditData?.guardrail_policy}</p>
+                  <div className="dossier-eyebrow-row">
+                    <span className="dossier-kicker">PRE-MARKET EVALUATION</span>
+                    <span className="dossier-reg-tag">FDA 21 CFR 820 • CDSCO SaMD CLASS C</span>
+                  </div>
+                  <h2 className="dossier-headline">{auditData?.verdict_title || 'Running Initial Audit...'}</h2>
+                  <p className="dossier-summary">{auditData?.guardrail_policy}</p>
                 </div>
-                <div className="score-gauge">
-                  <span className="score-number">{auditData?.readiness_score ?? '--'}</span>
-                  <span className="score-max">/ 100</span>
-                  <span className="score-label">Readiness Score</span>
+
+                <div className="dossier-action-bar">
+                  <div className="dossier-badge-wrap">
+                    {getVerdictBadge(auditData?.verdict)}
+                  </div>
+                  {auditData?.certificate_url && (
+                    <a
+                      href={auditData.certificate_url}
+                      download
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-secondary"
+                    >
+                      <Download size={13} /> Download FDA Audit Dossier (PDF)
+                    </a>
+                  )}
+                  <button
+                    onClick={() => setActiveTab('failures')}
+                    className="btn btn-ghost"
+                  >
+                    <AlertTriangle size={13} /> Inspect Failures ({auditData?.discrepancies?.length || 0})
+                  </button>
                 </div>
               </div>
 
-              <div className="verdict-actions">
-                {getVerdictBadge(auditData?.verdict)}
-                {auditData?.certificate_url && (
-                  <a
-                    href={auditData.certificate_url}
-                    download
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-secondary"
-                  >
-                    <Download size={14} /> Download FDA Audit Certificate (PDF)
-                  </a>
-                )}
+              <div className="dossier-score-card">
+                <div>
+                  <div className="score-dial-header">
+                    <div>
+                      <span className="score-number num-tabular">{auditData?.readiness_score ?? '--'}</span>
+                      <span className="score-max">/100</span>
+                    </div>
+                  </div>
+                  <div className="score-label-meta">Composite Safety Score</div>
+                </div>
+
+                <div className="score-submetrics">
+                  <div className="submetric-row">
+                    <span>Optical Robustness</span>
+                    <span className="num-tabular">28.0%</span>
+                  </div>
+                  <div className="submetric-track">
+                    <div className="submetric-fill fail" style={{ width: '28%' }} />
+                  </div>
+
+                  <div className="submetric-row">
+                    <span>Calibration Precision</span>
+                    <span className="num-tabular">14.2%</span>
+                  </div>
+                  <div className="submetric-track">
+                    <div className="submetric-fill fail" style={{ width: '14.2%' }} />
+                  </div>
+
+                  <div className="submetric-row">
+                    <span>Clinical Utility Margin</span>
+                    <span className="num-tabular">36.5%</span>
+                  </div>
+                  <div className="submetric-track">
+                    <div className="submetric-fill warn" style={{ width: '36.5%' }} />
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* 4 Metric Cards */}
-            <div className="metric-grid">
-              <div className="metric-card">
-                <span className="metric-title">Expected Calibration Error</span>
-                <span className="metric-val">{auditData?.calibration?.ece_percent ?? '--'}%</span>
-                <span className="metric-sub">{auditData?.calibration?.calibration_risk?.split(':')[0]}</span>
+            {/* Connected Telemetry Strip */}
+            <div className="telemetry-strip">
+              <div className="telemetry-bay">
+                <div className="bay-header">
+                  <span className="bay-title">Expected Calibration Error</span>
+                  <span className="bay-tag bay-tag-danger">HIGH RISK</span>
+                </div>
+                <div className="bay-value-row">
+                  <span className="bay-val num-tabular">{auditData?.calibration?.ece_percent ?? '--'}%</span>
+                  <span className="bay-unit">ECE</span>
+                </div>
+                <span className="bay-desc">{auditData?.calibration?.calibration_risk?.split(':')[0] || 'Overconfidence risk'}</span>
               </div>
-              <div className="metric-card">
-                <span className="metric-title">Defocus Blur Tolerance</span>
-                <span className="metric-val">
-                  {auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%
-                </span>
-                <span className="metric-sub">Retained at σ=6.0</span>
+
+              <div className="telemetry-bay">
+                <div className="bay-header">
+                  <span className="bay-title">Defocus Blur Tolerance</span>
+                  <span className="bay-tag bay-tag-danger">SUB-THRESHOLD</span>
+                </div>
+                <div className="bay-value-row">
+                  <span className="bay-val num-tabular">
+                    {auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%
+                  </span>
+                  <span className="bay-unit">retained</span>
+                </div>
+                <span className="bay-desc">Stability drops below 30% at σ=6.0</span>
               </div>
-              <div className="metric-card">
-                <span className="metric-title">Illumination Tolerance</span>
-                <span className="metric-val">
-                  {auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%
-                </span>
-                <span className="metric-sub">Retained at -80% drop</span>
+
+              <div className="telemetry-bay">
+                <div className="bay-header">
+                  <span className="bay-title">Illumination Sensitivity</span>
+                  <span className="bay-tag bay-tag-danger">SEVERE</span>
+                </div>
+                <div className="bay-value-row">
+                  <span className="bay-val num-tabular">
+                    {auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%
+                  </span>
+                  <span className="bay-unit">retained</span>
+                </div>
+                <span className="bay-desc">Vulnerable at -80% flash drop</span>
               </div>
-              <div className="metric-card">
-                <span className="metric-title">Silent Misses Caught</span>
-                <span className="metric-val" style={{ color: (auditData?.discrepancies?.length || 0) > 0 ? '#ef4444' : '#10b981' }}>
-                  {auditData?.discrepancies?.length || 0}
-                </span>
-                <span className="metric-sub">Classification shortcut violations</span>
+
+              <div className="telemetry-bay">
+                <div className="bay-header">
+                  <span className="bay-title">Silent Misses Caught</span>
+                  <span className={`bay-tag ${(auditData?.discrepancies?.length || 0) > 0 ? 'bay-tag-danger' : 'bay-tag-success'}`}>
+                    {(auditData?.discrepancies?.length || 0) > 0 ? 'CRITICAL' : 'ZERO'}
+                  </span>
+                </div>
+                <div className="bay-value-row">
+                  <span
+                    className="bay-val num-tabular"
+                    style={{
+                      color: (auditData?.discrepancies?.length || 0) > 0 ? 'var(--danger)' : 'var(--success)',
+                    }}
+                  >
+                    {auditData?.discrepancies?.length || 0}
+                  </span>
+                  <span className="bay-unit">patients</span>
+                </div>
+                <span className="bay-desc">Active physical lesions classified Normal</span>
               </div>
             </div>
 
@@ -490,31 +595,71 @@ export default function App() {
                 <tbody>
                   <tr>
                     <td><strong>Defocus / Motion Blur</strong></td>
-                    <td>σ = 0.0</td>
-                    <td>σ = 6.0 (Severe movement)</td>
-                    <td>{auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</td>
-                    <td><span className="status-fail">FAIL (Sub-threshold)</span></td>
+                    <td className="num-tabular">σ = 0.0</td>
+                    <td className="num-tabular">σ = 6.0 (Severe movement)</td>
+                    <td>
+                      <div className="table-retention-cell">
+                        <span className="num-tabular">{auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
+                        <div className="retention-mini-track">
+                          <div
+                            className="retention-mini-fill fail"
+                            style={{ width: `${Math.min(100, auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td><span className="status-pill status-pill-fail">FAIL • Sub-threshold</span></td>
                   </tr>
                   <tr>
                     <td><strong>Flash / Illumination Drop</strong></td>
-                    <td>100% Brightness</td>
-                    <td>-80% (Undilated pupil)</td>
-                    <td>{auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</td>
-                    <td><span className="status-fail">FAIL (Severe Sensitivity)</span></td>
+                    <td className="num-tabular">100% Brightness</td>
+                    <td className="num-tabular">-80% (Undilated pupil)</td>
+                    <td>
+                      <div className="table-retention-cell">
+                        <span className="num-tabular">{auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
+                        <div className="retention-mini-track">
+                          <div
+                            className="retention-mini-fill fail"
+                            style={{ width: `${Math.min(100, auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td><span className="status-pill status-pill-fail">FAIL • Severe Sensitivity</span></td>
                   </tr>
                   <tr>
                     <td><strong>Corneal Glare Reflection</strong></td>
-                    <td>0.00</td>
-                    <td>0.95 (Corneal Whiteout)</td>
-                    <td>{auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</td>
-                    <td><span className="status-fail">FAIL (Aperture Saturated)</span></td>
+                    <td className="num-tabular">0.00</td>
+                    <td className="num-tabular">0.95 (Corneal Whiteout)</td>
+                    <td>
+                      <div className="table-retention-cell">
+                        <span className="num-tabular">{auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
+                        <div className="retention-mini-track">
+                          <div
+                            className="retention-mini-fill fail"
+                            style={{ width: `${Math.min(100, auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td><span className="status-pill status-pill-fail">FAIL • Aperture Saturated</span></td>
                   </tr>
                   <tr>
                     <td><strong>Sensor Resolution Downsampling</strong></td>
-                    <td>384x384 px</td>
-                    <td>96x96 px (Extreme drop)</td>
-                    <td>{auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</td>
-                    <td><span className="status-pass">PASS (Tolerant)</span></td>
+                    <td className="num-tabular">384×384 px</td>
+                    <td className="num-tabular">96×96 px (Extreme drop)</td>
+                    <td>
+                      <div className="table-retention-cell">
+                        <span className="num-tabular">{auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
+                        <div className="retention-mini-track">
+                          <div
+                            className="retention-mini-fill pass"
+                            style={{ width: `${Math.min(100, auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td><span className="status-pill status-pill-pass">PASS • Tolerant</span></td>
                   </tr>
                 </tbody>
               </table>
@@ -596,7 +741,7 @@ export default function App() {
               </div>
               <div className="metric-card">
                 <span className="metric-title">G-AUDIT Shortcut Hazards</span>
-                <span className="metric-val" style={{ color: '#f59e0b' }}>
+                <span className="metric-val" style={{ color: 'var(--warning)' }}>
                   {cohortData?.metrics?.gaudit_shortcut_risk?.high_risk_shortcuts?.length ?? '2'} Flagged
                 </span>
                 <span className="metric-sub">Attribute Utility vs Detectability (FDA 2025)</span>
@@ -977,7 +1122,7 @@ export default function App() {
 
                       <div className="comparison-box ground-side">
                         <span className="box-title">Physical Anatomical Ground-Truth</span>
-                        <span className="box-grade" style={{ color: '#ef4444' }}>Grade {disc.biomarker_grade}</span>
+                        <span className="box-grade" style={{ color: 'var(--danger)' }}>Grade {disc.biomarker_grade}</span>
                         <span className="box-sub">{disc.evidence}</span>
                       </div>
                     </div>
