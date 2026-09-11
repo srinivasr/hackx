@@ -100,16 +100,24 @@ export default function App() {
   const isCXR = (mId) => mId === 'cxr_chexnet' || mId === 'cxr_mobilenet_edge';
 
   const loadCohortData = async (mId, dId) => {
+    setCohortLoading(true);
     try {
       const res = await fetch(`/api/audit/cohort-summary?model_id=${mId}&dataset_id=${dId}`);
       if (res.ok) {
         const data = await res.json();
         if (data && data.audit_run_id) {
           setCohortData(data);
+        } else {
+          setCohortData(null);
         }
+      } else {
+        setCohortData(null);
       }
     } catch (e) {
       console.warn('Cohort telemetry unavailable:', e.message);
+      setCohortData(null);
+    } finally {
+      setCohortLoading(false);
     }
   };
 
@@ -829,23 +837,26 @@ export default function App() {
                 <div>
                   <div className="dossier-eyebrow-row">
                     <span className="dossier-kicker">MULTICENTER STRESS BATTERY</span>
-                    <span className="dossier-reg-tag">FDA SaMD / CDSCO PCCP PROTOCOL</span>
                   </div>
                   <h2 className="dossier-headline">Multicenter Cohort Stress-Testing Battery</h2>
                   <p className="dossier-summary">
                     Evaluating 60-patient cohort across hardware corruptions, subgroup underdiagnosis, and shortcut learning.
                   </p>
                   <div className="cohort-meta-strip">
-                    <span className="meta-pill">Target: {cohortData?.target_model || selectedModel}</span>
+                    <span className="meta-pill">Target: {cohortData?.model_metadata?.name || cohortData?.target_model || selectedModel}</span>
                     <span className="meta-pill">Modality: {cohortData?.modality ? cohortData.modality.toUpperCase() : 'CLINICAL'}</span>
                     <span className="meta-pill">Cohort: {cohortData?.dataset_metadata?.name || selectedDataset}</span>
-                    <span className="meta-pill">Protocol: FDA SaMD / CDSCO PCCP</span>
                   </div>
                 </div>
 
                 <div className="dossier-action-bar">
-                  <span className="badge badge-warning">
-                    <AlertTriangle size={13} /> {cohortData?.verdict || 'CAUTION: RESTRICTED DEPLOYMENT'}
+                  <span className={`badge ${
+                    !cohortData ? 'badge-neutral' :
+                    cohortData.verdict?.includes('PASS') ? 'badge-success' :
+                    cohortData.verdict?.includes('REJECT') || cohortData.verdict?.includes('NO_GO') ? 'badge-danger' :
+                    'badge-warning'
+                  }`}>
+                    <AlertTriangle size={13} /> {cohortLoading ? 'AUDITING COHORT...' : (cohortData?.verdict ? cohortData.verdict.replace(/_/g, ' ') : 'PENDING AUDIT')}
                   </span>
                   <button
                     onClick={handleRunCohortAudit}
@@ -862,7 +873,7 @@ export default function App() {
                     rel="noreferrer"
                     className="btn btn-secondary"
                   >
-                    <Download size={14} /> Download FDA SaMD Dossier (PDF)
+                    <Download size={14} /> Download Audit Dossier (PDF)
                   </a>
                 </div>
               </div>
@@ -871,7 +882,7 @@ export default function App() {
                 <div>
                   <div className="score-dial-header">
                     <div>
-                      <span className="score-number num-tabular">{cohortData?.trust_score ?? '--'}</span>
+                      <span className="score-number num-tabular">{cohortLoading ? '...' : (cohortData?.trust_score ?? '--')}</span>
                       <span className="score-max">/100</span>
                     </div>
                   </div>
@@ -880,37 +891,57 @@ export default function App() {
 
                 <div className="score-submetrics">
                   {(() => {
-                    const cmce = cohortData?.metrics?.clinical_mce?.clinical_mean_corruption_error_cmce ?? 0.38;
-                    const robustPct = Math.round((1.0 - Math.min(1.0, cmce)) * 1000) / 10;
-                    const parity = cohortData?.metrics?.fairness_and_shift?.demographic_parity_disparity ?? 0.333;
-                    const equityPct = Math.round((1.0 - Math.min(1.0, parity)) * 1000) / 10;
-                    const deferYield = cohortData?.metrics?.calibration_and_uncertainty?.selective_deferral_risk_coverage?.retained_coverage_at_risk_budget ?? 0.85;
-                    const yieldPct = Math.round(deferYield * 1000) / 10;
+                    const cmceVal = cohortData?.metrics?.clinical_mce?.clinical_mean_corruption_error_cmce;
+                    const robustPct = cmceVal !== undefined 
+                      ? Math.round((1.0 - Math.min(1.0, cmceVal > 1.0 ? cmceVal / 100.0 : cmceVal)) * 1000) / 10 
+                      : null;
+
+                    const eqOdds = cohortData?.metrics?.fairness_and_shift?.equalized_odds_difference;
+                    const rawFairness = cohortData?.metrics?.fairness_and_shift?.fairness_score;
+                    const equityPct = rawFairness !== undefined
+                      ? Number(rawFairness).toFixed(1)
+                      : (eqOdds !== undefined
+                          ? (Math.round((1.0 - Math.min(1.0, eqOdds)) * 1000) / 10).toFixed(1)
+                          : null);
+
+                    const deferralRate = cohortData?.metrics?.selective_suppression_policy?.recommended_triage_deferral_rate;
+                    const yieldPct = deferralRate !== undefined
+                      ? Math.round((1.0 - deferralRate) * 1000) / 10
+                      : null;
 
                     return (
                       <>
                         <div className="submetric-row">
                           <span>Clinical Corruption Robustness</span>
-                          <span className="num-tabular">{robustPct}%</span>
+                          <span className="num-tabular">{robustPct !== null ? `${robustPct}%` : '--'}</span>
                         </div>
                         <div className="submetric-track">
-                          <div className={`submetric-fill ${robustPct < 50 ? 'fail' : robustPct < 75 ? 'warn' : 'pass'}`} style={{ width: `${Math.min(100, Math.max(0, robustPct))}%` }} />
+                          <div
+                            className={`submetric-fill ${robustPct === null ? '' : robustPct < 50 ? 'fail' : robustPct < 75 ? 'warn' : 'pass'}`}
+                            style={{ width: `${robustPct !== null ? Math.min(100, Math.max(0, robustPct)) : 0}%` }}
+                          />
                         </div>
 
                         <div className="submetric-row">
                           <span>Subgroup Equity Parity</span>
-                          <span className="num-tabular">{equityPct}%</span>
+                          <span className="num-tabular">{equityPct !== null ? `${equityPct}%` : '--'}</span>
                         </div>
                         <div className="submetric-track">
-                          <div className={`submetric-fill ${equityPct < 50 ? 'fail' : equityPct < 75 ? 'warn' : 'pass'}`} style={{ width: `${Math.min(100, Math.max(0, equityPct))}%` }} />
+                          <div
+                            className={`submetric-fill ${equityPct === null ? '' : Number(equityPct) < 50 ? 'fail' : Number(equityPct) < 75 ? 'warn' : 'pass'}`}
+                            style={{ width: `${equityPct !== null ? Math.min(100, Math.max(0, Number(equityPct))) : 0}%` }}
+                          />
                         </div>
 
                         <div className="submetric-row">
                           <span>Safe Deferral Yield</span>
-                          <span className="num-tabular">{yieldPct}%</span>
+                          <span className="num-tabular">{yieldPct !== null ? `${yieldPct}%` : '--'}</span>
                         </div>
                         <div className="submetric-track">
-                          <div className={`submetric-fill ${yieldPct < 50 ? 'fail' : yieldPct < 75 ? 'warn' : 'pass'}`} style={{ width: `${Math.min(100, Math.max(0, yieldPct))}%` }} />
+                          <div
+                            className={`submetric-fill ${yieldPct === null ? '' : yieldPct < 50 ? 'fail' : yieldPct < 75 ? 'warn' : 'pass'}`}
+                            style={{ width: `${yieldPct !== null ? Math.min(100, Math.max(0, yieldPct)) : 0}%` }}
+                          />
                         </div>
                       </>
                     );
@@ -927,7 +958,13 @@ export default function App() {
                   <span className="bay-tag bay-tag-warning">cMCE</span>
                 </div>
                 <div className="bay-value-row">
-                  <span className="bay-val num-tabular">{cohortData?.metrics?.clinical_mce?.clinical_mean_corruption_error_cmce ?? '0.38'}</span>
+                  <span className="bay-val num-tabular">
+                    {cohortData?.metrics?.clinical_mce?.clinical_mean_corruption_error_cmce !== undefined
+                      ? (cohortData.metrics.clinical_mce.clinical_mean_corruption_error_cmce > 1.0
+                          ? (cohortData.metrics.clinical_mce.clinical_mean_corruption_error_cmce / 100.0).toFixed(2)
+                          : Number(cohortData.metrics.clinical_mce.clinical_mean_corruption_error_cmce).toFixed(2))
+                      : '--'}
+                  </span>
                   <span className="bay-unit">index</span>
                 </div>
                 <span className="bay-desc">Hendrycks &amp; Dietterich (ICLR 2019)</span>
@@ -936,15 +973,23 @@ export default function App() {
               <div className="telemetry-bay">
                 <div className="bay-header">
                   <span className="bay-title">Worst-Group FNR</span>
-                  <span className="bay-tag bay-tag-danger">HIGH RISK</span>
+                  <span className={`bay-tag ${cohortData?.metrics?.worst_group_benchmarks?.worst_group_fnr > 0.2 ? 'bay-tag-danger' : 'bay-tag-success'}`}>
+                    {cohortData?.metrics?.worst_group_benchmarks?.worst_group_fnr !== undefined
+                      ? (cohortData.metrics.worst_group_benchmarks.worst_group_fnr > 0.2 ? 'HIGH RISK' : 'LOW RISK')
+                      : '--'}
+                  </span>
                 </div>
                 <div className="bay-value-row">
-                  <span className="bay-val num-tabular" style={{ color: 'var(--danger)' }}>
-                    {(cohortData?.metrics?.worst_group_benchmarks?.worst_group_fnr ? (cohortData.metrics.worst_group_benchmarks.worst_group_fnr * 100).toFixed(1) : '33.3')}%
+                  <span className="bay-val num-tabular" style={{ color: cohortData?.metrics?.worst_group_benchmarks?.worst_group_fnr > 0.2 ? 'var(--danger)' : 'var(--text-main)' }}>
+                    {cohortData?.metrics?.worst_group_benchmarks?.worst_group_fnr !== undefined
+                      ? `${(cohortData.metrics.worst_group_benchmarks.worst_group_fnr * 100).toFixed(1)}%`
+                      : '--'}
                   </span>
                   <span className="bay-unit">FNR</span>
                 </div>
-                <span className="bay-desc">Stratum: {cohortData?.metrics?.worst_group_benchmarks?.worst_performing_group || 'sex:F'} (WILDS 2021)</span>
+                <span className="bay-desc">
+                  Stratum: {cohortData?.metrics?.worst_group_benchmarks?.worst_performing_group || '--'} (WILDS 2021)
+                </span>
               </div>
 
               <div className="telemetry-bay">
@@ -954,24 +999,33 @@ export default function App() {
                 </div>
                 <div className="bay-value-row">
                   <span className="bay-val num-tabular">
-                    u* = {cohortData?.metrics?.selective_suppression_policy?.optimal_deferral_threshold_u ?? '0.72'}
+                    {cohortData?.metrics?.selective_suppression_policy?.recommended_triage_deferral_rate !== undefined
+                      ? `${(cohortData.metrics.selective_suppression_policy.recommended_triage_deferral_rate * 100).toFixed(0)}%`
+                      : '--'}
                   </span>
+                  <span className="bay-unit">triage deferral</span>
                 </div>
                 <span className="bay-desc">
-                  {cohortData?.metrics?.selective_suppression_policy?.expected_suppression_rate_pct ?? '15.0'}% cases routed to dual-read (JAMIA)
+                  {cohortData?.metrics?.selective_suppression_policy?.expected_accuracy_gain !== undefined
+                    ? `+${cohortData.metrics.selective_suppression_policy.expected_accuracy_gain.toFixed(1)}% accuracy yield on triage deferral`
+                    : 'Autonomous safety triage routing'}
                 </span>
               </div>
 
               <div className="telemetry-bay">
                 <div className="bay-header">
                   <span className="bay-title">G-AUDIT Hazards</span>
-                  <span className="bay-tag bay-tag-warning">
-                    {cohortData?.metrics?.gaudit_shortcut_risk?.high_risk_shortcuts?.length ?? '2'} FLAGGED
+                  <span className={`bay-tag ${cohortData?.metrics?.gaudit_shortcut_risk?.high_risk_shortcuts?.length > 0 ? 'bay-tag-warning' : 'bay-tag-success'}`}>
+                    {cohortData?.metrics?.gaudit_shortcut_risk?.high_risk_shortcuts !== undefined
+                      ? `${cohortData.metrics.gaudit_shortcut_risk.high_risk_shortcuts.length} FLAGGED`
+                      : '--'}
                   </span>
                 </div>
                 <div className="bay-value-row">
-                  <span className="bay-val num-tabular" style={{ color: 'var(--warning)' }}>
-                    {cohortData?.metrics?.gaudit_shortcut_risk?.high_risk_shortcuts?.length ?? '2'} Shortcuts
+                  <span className="bay-val num-tabular" style={{ color: cohortData?.metrics?.gaudit_shortcut_risk?.high_risk_shortcuts?.length > 0 ? 'var(--warning)' : 'var(--text-main)' }}>
+                    {cohortData?.metrics?.gaudit_shortcut_risk?.high_risk_shortcuts !== undefined
+                      ? `${cohortData.metrics.gaudit_shortcut_risk.high_risk_shortcuts.length} Shortcuts`
+                      : '--'}
                   </span>
                 </div>
                 <span className="bay-desc">Attribute Utility vs Detectability (FDA 2025)</span>
@@ -989,7 +1043,6 @@ export default function App() {
                       <h3 className="card-title-text">G-AUDIT Shortcut Risk Matrix</h3>
                       <p className="card-desc" style={{ marginTop: '2px' }}>Drenkow, Petrick [FDA CDRH], Unberath [JHU] (2025)</p>
                     </div>
-                    <span className="tag">Latent Probe</span>
                   </div>
                   <div className="table-wrapper">
                     <table className="data-table">
@@ -1002,12 +1055,12 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {cohortData?.metrics?.gaudit_shortcut_risk?.gaudit_matrix &&
+                        {cohortData?.metrics?.gaudit_shortcut_risk?.gaudit_matrix && Object.keys(cohortData.metrics.gaudit_shortcut_risk.gaudit_matrix).length > 0 ? (
                           Object.entries(cohortData.metrics.gaudit_shortcut_risk.gaudit_matrix).map(([attr, val]) => (
                             <tr key={attr}>
                               <td><strong>{attr}</strong></td>
-                              <td>{(val.detectability_auc).toFixed(2)}</td>
-                              <td>{(val.utility_auc).toFixed(2)}</td>
+                              <td className="num-tabular">{val.detectability_auc !== undefined ? Number(val.detectability_auc).toFixed(2) : '--'}</td>
+                              <td className="num-tabular">{val.utility_auc !== undefined ? Number(val.utility_auc).toFixed(2) : '--'}</td>
                               <td>
                                 {(val.status === 'SHORTCUT_HAZARD' || val.risk_status === 'HIGH_SHORTCUT_HAZARD') ? (
                                   <span className="status-fail">HIGH HAZARD</span>
@@ -1016,28 +1069,9 @@ export default function App() {
                                 )}
                               </td>
                             </tr>
-                          ))}
-                        {(!cohortData?.metrics?.gaudit_shortcut_risk?.gaudit_matrix) && (
-                          <>
-                            <tr>
-                              <td><strong>sex</strong></td>
-                              <td>0.74</td>
-                              <td>0.68</td>
-                              <td><span className="status-fail">HIGH HAZARD</span></td>
-                            </tr>
-                            <tr>
-                              <td><strong>site_id</strong></td>
-                              <td>0.81</td>
-                              <td>0.62</td>
-                              <td><span className="status-fail">HIGH HAZARD</span></td>
-                            </tr>
-                            <tr>
-                              <td><strong>scanner_type</strong></td>
-                              <td>0.54</td>
-                              <td>0.51</td>
-                              <td><span className="status-pass">LOW RISK</span></td>
-                            </tr>
-                          </>
+                          ))
+                        ) : (
+                          <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>{cohortLoading ? 'Computing G-AUDIT matrix...' : 'No G-AUDIT shortcut risk data computed for this cohort. Click "Run Cohort Audit Battery" to audit.'}</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -1051,7 +1085,6 @@ export default function App() {
                       <h3 className="card-title-text">Prevalence Shift &amp; Alert Fatigue Simulator</h3>
                       <p className="card-desc" style={{ marginTop: '2px' }}>Wong et al. (JAMA 2021) Bayes-Adjusted Collapse</p>
                     </div>
-                    <span className="tag">Bayes PPV</span>
                   </div>
                   <div className="table-wrapper">
                     <table className="data-table">
@@ -1059,26 +1092,41 @@ export default function App() {
                         <tr>
                           <th>Clinical Setting (Prevalence)</th>
                           <th>Bayes PPV</th>
-                          <th>Alert Fatigue Ratio</th>
+                          <th>Alert Fatigue Assessment</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {cohortData?.metrics?.prevalence_shift_simulation?.ladder ? (
-                          cohortData.metrics.prevalence_shift_simulation.ladder.map((row, idx) => (
-                            <tr key={idx}>
-                              <td><strong>{(row.prevalence * 100).toFixed(0)}%</strong> {row.prevalence >= 0.15 ? '(Tertiary Center)' : row.prevalence <= 0.05 ? '(Community Screening)' : '(Secondary Hospital)'}</td>
-                              <td>{(row.bayes_ppv * 100).toFixed(1)}%</td>
-                              <td><span className={row.false_alert_burden_ratio > 3.0 ? 'status-fail' : 'status-pass'}>{row.false_alert_burden_ratio.toFixed(2)}x</span></td>
-                            </tr>
-                          ))
-                        ) : (
-                          <>
-                            <tr><td><strong>20% (Tertiary)</strong></td><td>84.2%</td><td><span className="status-pass">1.00x</span></td></tr>
-                            <tr><td><strong>10% (Secondary)</strong></td><td>71.4%</td><td><span className="status-pass">1.82x</span></td></tr>
-                            <tr><td><strong>5% (Community)</strong></td><td>52.6%</td><td><span className="status-fail">3.64x</span></td></tr>
-                            <tr><td><strong>2% (Rural Screen)</strong></td><td>18.1%</td><td><span className="status-fail">7.28x</span></td></tr>
-                          </>
-                        )}
+                        {(() => {
+                          const ladder = cohortData?.metrics?.prevalence_shift_simulation?.prevalence_ladder 
+                            || cohortData?.metrics?.prevalence_shift_simulation?.ladder;
+                          if (ladder && ladder.length > 0) {
+                            return ladder.map((row, idx) => {
+                              const prev = row.disease_prevalence ?? row.prevalence;
+                              const ppv = row.ppv ?? row.bayes_ppv;
+                              const burden = row.clinical_alert_burden 
+                                || (row.false_alert_burden_ratio !== undefined ? `${Number(row.false_alert_burden_ratio).toFixed(2)}x` : (prev !== undefined && prev < 0.05 ? 'HIGH BURDEN' : 'ACCEPTABLE'));
+                              const isSafe = row.alert_fatigue_false_alarm_pct !== undefined 
+                                ? row.alert_fatigue_false_alarm_pct < 20.0 
+                                : (row.false_alert_burden_ratio !== undefined ? row.false_alert_burden_ratio <= 2.0 : burden === 'ACCEPTABLE');
+                              const settingName = prev !== undefined
+                                ? (prev >= 0.30 ? 'Tertiary Center' : prev >= 0.15 ? 'Regional Hospital' : prev >= 0.05 ? 'District Clinic' : 'Rural Primary Screen')
+                                : 'Screening';
+
+                              return (
+                                <tr key={idx}>
+                                  <td><strong>{prev !== undefined ? `${(prev * 100).toFixed(0)}%` : '--'}</strong> ({settingName})</td>
+                                  <td className="num-tabular">{ppv !== undefined ? `${(ppv * 100).toFixed(1)}%` : '--'}</td>
+                                  <td>
+                                    <span className={isSafe ? 'status-pass' : 'status-fail'}>{burden}</span>
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          }
+                          return (
+                            <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>{cohortLoading ? 'Simulating prevalence shift...' : 'No prevalence shift simulation available for this cohort. Click "Run Cohort Audit Battery" to execute.'}</td></tr>
+                          );
+                        })()}
                       </tbody>
                     </table>
                   </div>
@@ -1094,7 +1142,6 @@ export default function App() {
                       <h3 className="card-title-text">Decision Curve Analysis (Net Benefit)</h3>
                       <p className="card-desc" style={{ marginTop: '2px' }}>Vickers &amp; Elkin (2006) Clinical Utility Boundaries</p>
                     </div>
-                    <span className="tag">DCA Curve</span>
                   </div>
                   <div className="table-wrapper">
                     <table className="data-table">
@@ -1107,29 +1154,40 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {cohortData?.metrics?.clinical_utility_dca?.net_benefit_curve ? (
-                          cohortData.metrics.clinical_utility_dca.net_benefit_curve.map((row, idx) => (
-                            <tr key={idx}>
-                              <td><strong>{(row.threshold_pt * 100).toFixed(0)}%</strong></td>
-                              <td className="status-pass">{row.net_benefit_model.toFixed(3)}</td>
-                              <td>{row.net_benefit_treat_all.toFixed(3)}</td>
-                              <td>
-                                {row.net_benefit_model > row.net_benefit_treat_all ? (
-                                  <span className="status-pass">CLINICAL ADVANTAGE</span>
-                                ) : (
-                                  <span className="status-fail">NO BENEFIT OVER TREAT-ALL</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))
-                        ) : (
-                          <>
-                            <tr><td><strong>10%</strong></td><td className="status-pass">0.450</td><td>0.380</td><td><span className="status-pass">CLINICAL ADVANTAGE</span></td></tr>
-                            <tr><td><strong>20%</strong></td><td className="status-pass">0.390</td><td>0.250</td><td><span className="status-pass">CLINICAL ADVANTAGE</span></td></tr>
-                            <tr><td><strong>30%</strong></td><td className="status-pass">0.310</td><td>0.140</td><td><span className="status-pass">CLINICAL ADVANTAGE</span></td></tr>
-                            <tr><td><strong>40%</strong></td><td className="status-pass">0.240</td><td>0.050</td><td><span className="status-pass">CLINICAL ADVANTAGE</span></td></tr>
-                          </>
-                        )}
+                        {(() => {
+                          const dcaRows = cohortData?.metrics?.clinical_utility_dca?.dca_points 
+                            || cohortData?.metrics?.clinical_utility_dca?.net_benefit_curve;
+                          if (dcaRows && dcaRows.length > 0) {
+                            return dcaRows.map((row, idx) => {
+                              const pt = row.threshold_probability ?? row.threshold_pt;
+                              const netModel = row.net_benefit_model;
+                              const netAll = row.net_benefit_treat_all;
+                              const isSuperior = row.superior_to_defaults ?? (netModel !== undefined && netAll !== undefined && netModel > netAll);
+
+                              return (
+                                <tr key={idx}>
+                                  <td><strong>{pt !== undefined ? `${(pt * 100).toFixed(0)}%` : '--'}</strong></td>
+                                  <td className={netModel !== undefined && netModel > 0 ? 'status-pass num-tabular' : 'status-fail num-tabular'}>
+                                    {netModel !== undefined ? netModel.toFixed(3) : '--'}
+                                  </td>
+                                  <td className="num-tabular">
+                                    {netAll !== undefined ? netAll.toFixed(3) : '--'}
+                                  </td>
+                                  <td>
+                                    {isSuperior ? (
+                                      <span className="status-pass">CLINICAL ADVANTAGE</span>
+                                    ) : (
+                                      <span className="status-fail">NO BENEFIT OVER TREAT-ALL</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          }
+                          return (
+                            <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>{cohortLoading ? 'Evaluating clinical utility boundaries...' : 'No DCA net benefit curve available for this cohort. Click "Run Cohort Audit Battery" to execute.'}</td></tr>
+                          );
+                        })()}
                       </tbody>
                     </table>
                   </div>
@@ -1157,22 +1215,9 @@ export default function App() {
                         </div>
                       ))
                     ) : (
-                      <>
-                        <div className="veto-box">
-                          <AlertTriangle size={16} className="veto-box-icon" />
-                          <div>
-                            <span className="veto-box-title">VETO #1: DEMOGRAPHIC PREVALENCE LEAKAGE</span>
-                            <p className="veto-box-desc">Penultimate latent features decode patient sex with AUROC &gt; 0.70. Spurious non-clinical shortcut risk.</p>
-                          </div>
-                        </div>
-                        <div className="veto-box">
-                          <AlertTriangle size={16} className="veto-box-icon" />
-                          <div>
-                            <span className="veto-box-title">VETO #2: CONTRAST SENSITIVITY DECAY</span>
-                            <p className="veto-box-desc">Decay slope under low-contrast illumination breaches stability threshold. Downstream image quality gate required.</p>
-                          </div>
-                        </div>
-                      </>
+                      <div style={{ padding: '16px', color: 'var(--text-muted)', textAlign: 'center', fontSize: '13px' }}>
+                        {cohortLoading ? 'Auditing safety constraints...' : 'No critical clinical safety vetoes or contraindications active for this cohort.'}
+                      </div>
                     )}
                   </div>
                 </div>

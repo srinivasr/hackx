@@ -491,31 +491,18 @@ def get_cohort_summary(
     """Returns standardized multicenter cohort audit telemetry for selected (model, dataset)."""
     model_meta, dataset_meta, output_dir = resolve_audit_paths(model_id, dataset_id)
 
-    candidates = [
-        os.path.join(output_dir, "telemetry.json"),
-        os.path.join(dataset_meta.get("default_output_dir", ""), "telemetry.json"),
-        "outputs/audit_run_01/telemetry.json",
-        "output/audit_run_01/telemetry.json",
-    ]
+    target_telemetry = os.path.join(output_dir, "telemetry.json")
+    if os.path.exists(target_telemetry):
+        with open(target_telemetry, "r") as f:
+            data = json.load(f)
+            data["requested_model_id"] = model_id
+            data["requested_dataset_id"] = dataset_meta["id"]
+            data["model_metadata"] = model_meta
+            data["dataset_metadata"] = dataset_meta
+            return data
 
-    for c in candidates:
-        if os.path.exists(c):
-            with open(c, "r") as f:
-                data = json.load(f)
-                data["requested_model_id"] = model_id
-                data["requested_dataset_id"] = dataset_meta["id"]
-                data["model_metadata"] = model_meta
-                data["dataset_metadata"] = dataset_meta
-                return data
-
-    return {
-        "status": "not_executed",
-        "requested_model_id": model_id,
-        "requested_dataset_id": dataset_meta["id"],
-        "model_metadata": model_meta,
-        "dataset_metadata": dataset_meta,
-        "message": f"Cohort audit telemetry not found for {model_meta['name']} on {dataset_meta['name']}. Click 'Run Clinical Audit' to execute.",
-    }
+    # If telemetry doesn't exist for this specific model/dataset pair, generate it on-demand!
+    return run_cohort_audit(model_id=model_id, dataset_id=dataset_meta["id"])
 
 
 @app.post("/api/audit/run-cohort")
@@ -536,17 +523,6 @@ def run_cohort_audit(
         modality=dataset_meta["modality"],
     )
 
-    # Cache into default output dir for fast lookup
-    default_dir = dataset_meta.get("default_output_dir")
-    if default_dir and default_dir != output_dir:
-        os.makedirs(default_dir, exist_ok=True)
-        with open(os.path.join(default_dir, "telemetry.json"), "w") as f:
-            json.dump(telemetry, f, indent=2)
-        pdf_src = os.path.join(output_dir, "audit_certificate.pdf")
-        if os.path.exists(pdf_src):
-            import shutil
-            shutil.copy2(pdf_src, os.path.join(default_dir, "audit_certificate.pdf"))
-
     telemetry["requested_model_id"] = model_id
     telemetry["requested_dataset_id"] = dataset_meta["id"]
     telemetry["model_metadata"] = model_meta
@@ -561,26 +537,24 @@ def get_cohort_pdf(
 ):
     """Downloads FDA/CDSCO SaMD regulatory audit certificate PDF for selected (model, dataset)."""
     model_meta, dataset_meta, output_dir = resolve_audit_paths(model_id, dataset_id)
-    candidates = [
-        os.path.join(output_dir, "audit_certificate.pdf"),
-        os.path.join(dataset_meta.get("default_output_dir", ""), "audit_certificate.pdf"),
-        "outputs/audit_run_01/audit_certificate.pdf",
-        "output/audit_run_01/audit_certificate.pdf",
-    ]
+    target_pdf = os.path.join(output_dir, "audit_certificate.pdf")
+    if os.path.exists(target_pdf):
+        filename = f"TrustCheck_Dossier_{model_id}_{dataset_meta['id']}.pdf"
+        return FileResponse(target_pdf, media_type="application/pdf", filename=filename)
 
-    for c in candidates:
-        if os.path.exists(c):
-            filename = f"TrustCheck_Certificate_{model_id}_{dataset_meta['id']}.pdf"
-            return FileResponse(c, media_type="application/pdf", filename=filename)
+    # If missing, trigger on-demand generation
+    try:
+        run_cohort_audit(model_id=model_id, dataset_id=dataset_id)
+        if os.path.exists(target_pdf):
+            filename = f"TrustCheck_Dossier_{model_id}_{dataset_meta['id']}.pdf"
+            return FileResponse(target_pdf, media_type="application/pdf", filename=filename)
+    except Exception as e:
+        pass
 
-    # Fallback to existing sample or latest generated certificate
-    fallback_candidates = [
-        "outputs/TrustCheck_Certificate_Sample.pdf",
-        *sorted(glob.glob("outputs/TrustCheck_Certificate_*.pdf"), reverse=True),
-    ]
-    for f in fallback_candidates:
-        if os.path.exists(f):
-            filename = f"TrustCheck_Certificate_{model_id}_{dataset_meta['id']}.pdf"
-            return FileResponse(f, media_type="application/pdf", filename=filename)
+    # Fallback to existing sample certificate
+    if os.path.exists("outputs/TrustCheck_Certificate_Sample.pdf"):
+        filename = f"TrustCheck_Dossier_{model_id}_{dataset_meta['id']}.pdf"
+        return FileResponse("outputs/TrustCheck_Certificate_Sample.pdf", media_type="application/pdf", filename=filename)
 
-    raise HTTPException(status_code=404, detail="Cohort PDF certificate not generated yet.")
+    raise HTTPException(status_code=404, detail="Audit dossier PDF not generated yet.")
+
