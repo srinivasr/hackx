@@ -1675,7 +1675,7 @@
     width: 100%;
   }
 
-  .tab-strip {
+  .tab-nav {
     overflow-x: auto;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
@@ -1683,7 +1683,7 @@
     scrollbar-width: none;
   }
 
-  .tab-strip::-webkit-scrollbar {
+  .tab-nav::-webkit-scrollbar {
     display: none;
   }
 
@@ -2028,6 +2028,32 @@
   .data-table td {
     padding: 14px 20px;
   }
+
+  .auroc-deck {
+    padding: 24px 28px;
+    gap: 20px;
+  }
+
+  .auroc-title {
+    font-size: 18px;
+  }
+
+  .auroc-subtitle {
+    font-size: 13.5px;
+  }
+
+  .auroc-main-grid {
+    grid-template-columns: 1fr 420px;
+    gap: 24px;
+  }
+
+  .auroc-stat-card {
+    padding: 18px 20px;
+  }
+
+  .stat-metric-primary {
+    font-size: 34px;
+  }
 }
 
 /* ── 4K Native Ultra-HD TVs & Projectors (>= 3200px) ─────── */
@@ -2107,5 +2133,31 @@
 
   .data-table td {
     padding: 18px 28px;
+  }
+
+  .auroc-deck {
+    padding: 32px 38px;
+    gap: 26px;
+  }
+
+  .auroc-title {
+    font-size: 24px;
+  }
+
+  .auroc-subtitle {
+    font-size: 16px;
+  }
+
+  .auroc-main-grid {
+    grid-template-columns: 1fr 560px;
+    gap: 32px;
+  }
+
+  .auroc-stat-card {
+    padding: 24px 26px;
+  }
+
+  .stat-metric-primary {
+    font-size: 46px;
   }
 }
