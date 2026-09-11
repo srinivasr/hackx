@@ -166,6 +166,7 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setAuditData(data);
+        setActiveTab('overview');
       }
     } catch (e) {
       console.warn('Audit run failed:', e.message);
@@ -488,26 +489,35 @@ export default function App() {
                 <div className="score-submetrics">
                   <div className="submetric-row">
                     <span>Optical Robustness</span>
-                    <span className="num-tabular">28.0%</span>
+                    <span className="num-tabular">{auditData?.optical_robustness ?? '28.0'}%</span>
                   </div>
                   <div className="submetric-track">
-                    <div className="submetric-fill fail" style={{ width: '28%' }} />
+                    <div
+                      className={`submetric-fill ${(auditData?.optical_robustness ?? 28) < 50 ? 'fail' : (auditData?.optical_robustness ?? 28) < 75 ? 'warn' : 'pass'}`}
+                      style={{ width: `${Math.min(100, Math.max(0, auditData?.optical_robustness ?? 28))}%` }}
+                    />
                   </div>
 
                   <div className="submetric-row">
                     <span>Calibration Precision</span>
-                    <span className="num-tabular">14.2%</span>
+                    <span className="num-tabular">{auditData?.calibration_precision ?? '14.2'}%</span>
                   </div>
                   <div className="submetric-track">
-                    <div className="submetric-fill fail" style={{ width: '14.2%' }} />
+                    <div
+                      className={`submetric-fill ${(auditData?.calibration_precision ?? 14.2) < 50 ? 'fail' : (auditData?.calibration_precision ?? 14.2) < 75 ? 'warn' : 'pass'}`}
+                      style={{ width: `${Math.min(100, Math.max(0, auditData?.calibration_precision ?? 14.2))}%` }}
+                    />
                   </div>
 
                   <div className="submetric-row">
                     <span>Clinical Utility Margin</span>
-                    <span className="num-tabular">36.5%</span>
+                    <span className="num-tabular">{auditData?.utility_margin ?? '36.5'}%</span>
                   </div>
                   <div className="submetric-track">
-                    <div className="submetric-fill warn" style={{ width: '36.5%' }} />
+                    <div
+                      className={`submetric-fill ${(auditData?.utility_margin ?? 36.5) < 50 ? 'fail' : (auditData?.utility_margin ?? 36.5) < 75 ? 'warn' : 'pass'}`}
+                      style={{ width: `${Math.min(100, Math.max(0, auditData?.utility_margin ?? 36.5))}%` }}
+                    />
                   </div>
                 </div>
               </div>
@@ -846,7 +856,7 @@ export default function App() {
                               <td>{(val.detectability_auc).toFixed(2)}</td>
                               <td>{(val.utility_auc).toFixed(2)}</td>
                               <td>
-                                {val.risk_status === 'HIGH_SHORTCUT_HAZARD' ? (
+                                {(val.status === 'SHORTCUT_HAZARD' || val.risk_status === 'HIGH_SHORTCUT_HAZARD') ? (
                                   <span className="status-fail">HIGH HAZARD</span>
                                 ) : (
                                   <span className="status-pass">LOW RISK</span>

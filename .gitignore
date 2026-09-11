@@ -69,3 +69,7 @@ result-*
 .env
 .env.*
 !.envrc
+
+# ── Second Brain Local Memory Anchors ───────────────────
+.hermes.md
+.agents/

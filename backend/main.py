@@ -137,13 +137,21 @@ def get_evaluator(model_id: str) -> CandidateModelEvaluator:
     return evaluator_instances[model_id]
 
 
-def load_test_samples() -> Dict[str, np.ndarray]:
+def load_test_samples(modality: str = "retinal_fundus") -> Dict[str, np.ndarray]:
     samples = {}
-    for p in glob.glob("assets/test_samples/*.jpg"):
-        key = os.path.basename(p).split(".")[0]
-        img = cv2.imread(p)
-        if img is not None:
-            samples[key] = img
+    if modality == "chest_xray":
+        files = sorted(glob.glob("data/sample_scans/*.png"))[:6]
+        for p in files:
+            key = os.path.basename(p).split(".")[0]
+            img = cv2.imread(p)
+            if img is not None:
+                samples[key] = img
+    else:
+        for p in sorted(glob.glob("assets/test_samples/*.jpg")):
+            key = os.path.basename(p).split(".")[0]
+            img = cv2.imread(p)
+            if img is not None:
+                samples[key] = img
     return samples
 
 
@@ -341,14 +349,37 @@ def get_pccp_rules():
     }
 
 
+RETINAL_GROUND_TRUTH = {
+    "sample_clinical_pass": 0,
+    "sample_corneal_glare": 0,
+    "sample_low_illumination": 1,
+    "sample_motion_blur": 1,
+    "sample_silent_failure_candidate": 2,
+    "sample_severe_npdr": 3,
+}
+
+CXR_GROUND_TRUTH = {
+    "scan_0001": 1,
+    "scan_0002": 0,
+    "scan_0003": 1,
+    "scan_0004": 0,
+    "scan_0005": 0,
+    "scan_0006": 1,
+}
+
+
 @app.post("/api/audit/run")
 def run_audit(model_id: str = Query("dr_lcnet_edge")):
     evaluator = get_evaluator(model_id)
-    samples = load_test_samples()
+    canonical_id = MODEL_ALIASES.get(model_id, model_id)
+    entry = MODEL_REGISTRY.get(canonical_id, {})
+    modality = entry.get("modality", "retinal_fundus")
+    samples = load_test_samples(modality=modality)
     if not samples:
-        raise HTTPException(status_code=500, detail="No test samples found in assets/test_samples.")
+        raise HTTPException(status_code=500, detail=f"No test samples found for modality {modality}.")
 
-    audit_res = run_full_model_audit(evaluator, samples)
+    gt_labels = CXR_GROUND_TRUTH if modality == "chest_xray" else RETINAL_GROUND_TRUTH
+    audit_res = run_full_model_audit(evaluator, samples, ground_truth_labels=gt_labels)
 
     # Generate deployment certificate
     pdf_filename = f"TrustCheck_Certificate_{audit_res['audit_id']}.pdf"

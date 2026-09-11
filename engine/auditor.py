@@ -25,15 +25,26 @@ class CandidateModelEvaluator:
         
         try:
             self.session = ort.InferenceSession(model_path, providers=self.providers)
-            self.input_name = self.session.get_inputs()[0].name
+            inp = self.session.get_inputs()[0]
+            self.input_name = inp.name
+            if len(inp.shape) >= 4 and isinstance(inp.shape[-2], int) and isinstance(inp.shape[-1], int):
+                self.target_size = (inp.shape[-1], inp.shape[-2])
+            else:
+                self.target_size = (384, 384)
             self.has_masks = len(self.session.get_outputs()) > 1
         except Exception as e:
             raise RuntimeError(f"Failed to initialize ONNX model at {model_path}: {e}")
 
     def preprocess_image(self, img_bgr: np.ndarray) -> np.ndarray:
-        """Preprocesses raw BGR fundus scan into normalized 384x384 float32 tensor."""
-        resized = cv2.resize(img_bgr, (384, 384), interpolation=cv2.INTER_AREA)
-        rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+        """Preprocesses raw BGR fundus or X-ray scan into normalized float32 tensor."""
+        resized = cv2.resize(img_bgr, self.target_size, interpolation=cv2.INTER_AREA)
+        if resized.ndim == 2:
+            resized = cv2.cvtColor(resized, cv2.COLOR_GRAY2RGB)
+        elif resized.shape[2] == 4:
+            resized = cv2.cvtColor(resized, cv2.COLOR_BGRA2RGB)
+        elif resized.shape[2] == 3:
+            resized = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+        rgb = resized.astype(np.float32) / 255.0
 
         # Standard ImageNet normalization
         mean = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 1, 3)
@@ -64,6 +75,8 @@ class CandidateModelEvaluator:
             # Sigmoid activation on 4-channel lesion masks
             mask_probs = 1.0 / (1.0 + np.exp(-np.clip(raw_masks, -15.0, 15.0)))
             
+            h, w = raw_masks.shape[1], raw_masks.shape[2]
+
             # Channel 0: Microaneurysms
             ma_bin = (mask_probs[0] >= 0.50).astype(np.uint8)
             num_labels, _, stats, _ = cv2.connectedComponentsWithStats(ma_bin, connectivity=8)
@@ -71,17 +84,16 @@ class CandidateModelEvaluator:
             
             # Channel 1: Hard Exudates
             ex_bin = (mask_probs[1] >= 0.50).astype(np.uint8)
-            ex_pct = float(np.sum(ex_bin) / (384 * 384)) * 100.0
+            ex_pct = float(np.sum(ex_bin) / (h * w)) * 100.0
 
             # Channel 2: Hemorrhages
             he_bin = (mask_probs[2] >= 0.50).astype(np.uint8)
-            h, w = 384, 384
             quads = [he_bin[0:h//2, 0:w//2], he_bin[0:h//2, w//2:w], he_bin[h//2:h, 0:w//2], he_bin[h//2:h, w//2:w]]
             he_quads = sum(1 for q in quads if np.sum(q) > 10)
 
             # Channel 3: Soft Exudates
             se_bin = (mask_probs[3] >= 0.50).astype(np.uint8)
-            se_pct = float(np.sum(se_bin) / (384 * 384)) * 100.0
+            se_pct = float(np.sum(se_bin) / (h * w)) * 100.0
 
             biomarkers = {
                 "microaneurysms": mas,
@@ -192,14 +204,43 @@ def run_full_model_audit(
     # 4. Clinical Sanity & Shortcut Learning Discrepancy Checks
     discrepancy_cases = []
     for name, res in baseline_predictions.items():
-        check = verify_lesion_classification_consensus(
-            res["predicted_grade"], res["confidence"], res["biomarkers"]
-        )
-        if not check["is_safe"]:
+        if evaluator.has_masks:
+            check = verify_lesion_classification_consensus(
+                res["predicted_grade"], res["confidence"], res["biomarkers"]
+            )
+        else:
+            # Classification-only models: compare prediction against confirmed clinical ground-truth
+            gt_grade = ground_truth_labels.get(name) if ground_truth_labels else None
+            pred_g = res["predicted_grade"]
+            if gt_grade is not None:
+                if pred_g == 0 and gt_grade >= 2:
+                    check = {
+                        "is_safe": False,
+                        "predicted_grade": pred_g,
+                        "physical_biomarker_grade": gt_grade,
+                        "violation_type": "CRITICAL_SILENT_FALSE_NEGATIVE",
+                        "verdict": f"DANGER: Candidate model predicted Normal with {res['confidence']:.1f}% confidence on confirmed Grade {gt_grade} pathology.",
+                        "evidence_summary": f"Confirmed clinical ground-truth Grade {gt_grade} missed by model.",
+                    }
+                elif pred_g >= 3 and gt_grade == 0:
+                    check = {
+                        "is_safe": False,
+                        "predicted_grade": pred_g,
+                        "physical_biomarker_grade": gt_grade,
+                        "violation_type": "FALSE_POSITIVE_PANIC",
+                        "verdict": f"OVERCLASSIFICATION: Model predicted severe disease (Grade {pred_g}) on confirmed normal tissue.",
+                        "evidence_summary": "Confirmed normal clinical ground-truth.",
+                    }
+                else:
+                    check = {"is_safe": True}
+            else:
+                check = {"is_safe": True}
+
+        if not check.get("is_safe", True):
             discrepancy_cases.append({
                 "sample_id": name,
                 "predicted_grade": check["predicted_grade"],
-                "biomarker_grade": check["physical_biomarker_grade"],
+                "biomarker_grade": check.get("physical_biomarker_grade", 0),
                 "violation_type": check["violation_type"],
                 "verdict": check["verdict"],
                 "evidence": check["evidence_summary"],
@@ -231,11 +272,18 @@ def run_full_model_audit(
         verdict_title = "REJECTED: Unsafe for Independent Clinical Use"
         guardrail_policy = "High vulnerability to optical noise and silent false negatives. Requires retraining with multi-source regularization."
 
+    optical_robustness = round(float(stability_avg), 1)
+    calibration_precision = round(max(0.0, 100.0 - float(calibration_metrics["ece"] * 100.0)), 1)
+    utility_margin = round(max(0.0, 100.0 - (len(discrepancy_cases) * 25.0)), 1)
+
     audit_summary = {
         "audit_id": f"TC-{int(time.time())}",
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
         "model_name": evaluator.model_name,
         "readiness_score": readiness_score,
+        "optical_robustness": optical_robustness,
+        "calibration_precision": calibration_precision,
+        "utility_margin": utility_margin,
         "verdict": verdict,
         "verdict_title": verdict_title,
         "guardrail_policy": guardrail_policy,
