@@ -363,6 +363,17 @@
   font-weight: 600;
 }
 
+.status-subtle {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.status-warn {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+
 /* Stress Studio */
 .studio-container {
   display: grid;

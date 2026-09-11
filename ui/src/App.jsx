@@ -121,6 +121,19 @@ export default function App() {
     return <span className="badge badge-danger"><XCircle size={13} /> REJECTED: Unsafe for Patient Care</span>;
   };
 
+  const renderStabilityVerdict = (stability, failReason = 'Sub-threshold', passReason = 'Tolerant') => {
+    if (stability === undefined || stability === null) {
+      return <span className="status-subtle">AUDITING...</span>;
+    }
+    const isPass = stability >= 50.0;
+    return (
+      <span className={isPass ? 'status-pass' : 'status-fail'}>
+        {isPass ? `PASS (${passReason})` : `FAIL (${failReason})`}
+      </span>
+    );
+  };
+
+
   return (
     <div className="layout">
       {/* Top Header */}
@@ -276,34 +289,45 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td><strong>Defocus / Motion Blur</strong></td>
-                    <td>σ = 0.0</td>
-                    <td>σ = 6.0 (Severe movement)</td>
-                    <td>{auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</td>
-                    <td><span className="status-fail">FAIL (Sub-threshold)</span></td>
-                  </tr>
-                  <tr>
-                    <td><strong>Flash / Illumination Drop</strong></td>
-                    <td>100% Brightness</td>
-                    <td>-80% (Undilated pupil)</td>
-                    <td>{auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</td>
-                    <td><span className="status-fail">FAIL (Severe Sensitivity)</span></td>
-                  </tr>
-                  <tr>
-                    <td><strong>Corneal Glare Reflection</strong></td>
-                    <td>0.00</td>
-                    <td>0.95 (Corneal Whiteout)</td>
-                    <td>{auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</td>
-                    <td><span className="status-fail">FAIL (Aperture Saturated)</span></td>
-                  </tr>
-                  <tr>
-                    <td><strong>Sensor Resolution Downsampling</strong></td>
-                    <td>384x384 px</td>
-                    <td>96x96 px (Extreme drop)</td>
-                    <td>{auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</td>
-                    <td><span className="status-pass">PASS (Tolerant)</span></td>
-                  </tr>
+                  {(() => {
+                    const blurStability = auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability;
+                    const illumStability = auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability;
+                    const glareStability = auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability;
+                    const resStability = auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability;
+
+                    return (
+                      <>
+                        <tr>
+                          <td><strong>Defocus / Motion Blur</strong></td>
+                          <td>σ = 0.0</td>
+                          <td>σ = 6.0 (Severe movement)</td>
+                          <td>{blurStability != null ? `${blurStability}%` : '--'}</td>
+                          <td>{renderStabilityVerdict(blurStability, 'Sub-threshold', 'Tolerant')}</td>
+                        </tr>
+                        <tr>
+                          <td><strong>Flash / Illumination Drop</strong></td>
+                          <td>100% Brightness</td>
+                          <td>-80% (Undilated pupil)</td>
+                          <td>{illumStability != null ? `${illumStability}%` : '--'}</td>
+                          <td>{renderStabilityVerdict(illumStability, 'Severe Sensitivity', 'Tolerant')}</td>
+                        </tr>
+                        <tr>
+                          <td><strong>Corneal Glare Reflection</strong></td>
+                          <td>0.00</td>
+                          <td>0.95 (Corneal Whiteout)</td>
+                          <td>{glareStability != null ? `${glareStability}%` : '--'}</td>
+                          <td>{renderStabilityVerdict(glareStability, 'Aperture Saturated', 'Tolerant')}</td>
+                        </tr>
+                        <tr>
+                          <td><strong>Sensor Resolution Downsampling</strong></td>
+                          <td>384x384 px</td>
+                          <td>96x96 px (Extreme drop)</td>
+                          <td>{resStability != null ? `${resStability}%` : '--'}</td>
+                          <td>{renderStabilityVerdict(resStability, 'Resolution Degraded', 'Tolerant')}</td>
+                        </tr>
+                      </>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
