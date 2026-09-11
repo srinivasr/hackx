@@ -18,6 +18,7 @@ from engine.perturbation import (
     apply_gaussian_blur,
     apply_illumination_attenuation,
     apply_corneal_glare,
+    apply_sensor_noise,
     apply_resolution_scaling,
 )
 from backend.certificate_gen import generate_deployment_certificate
