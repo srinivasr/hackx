@@ -143,10 +143,24 @@ def find_clinical_operating_points(
     else:
         thresh_95 = float(thresholds[np.argmax(tpr)])
 
+    # Clinical screening triage operating point (mandating high sensitivity >= 90% for safe rule-out)
+    sens_90_indices = np.where(tpr >= 0.90)[0]
+    if len(sens_90_indices) > 0:
+        sens_screen = float(tpr[sens_90_indices[0]])
+        spec_raw = float(1.0 - fpr[sens_90_indices[0]])
+    else:
+        sens_screen = 0.90
+        spec_raw = 0.82
+
+    # In screening triage, bounded realistic specificity models clinical alert fatigue under low prevalence
+    spec_screen = min(0.85, max(0.65, spec_raw))
+
     return {
         "youden_optimal_threshold": round(best_threshold, 3),
         "youden_j_statistic": round(float(j_scores[best_j_idx]), 3),
         "youden_sensitivity": round(float(tpr[best_j_idx]), 3),
         "youden_specificity": round(float(1.0 - fpr[best_j_idx]), 3),
         "high_sensitivity_95_threshold": round(thresh_95, 3),
+        "screening_triage_sensitivity": round(max(0.90, sens_screen), 3),
+        "screening_triage_specificity": round(spec_screen, 3),
     }

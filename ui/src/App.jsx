@@ -1317,9 +1317,7 @@ export default function App() {
                               const ppv = row.ppv ?? row.bayes_ppv;
                               const burden = row.clinical_alert_burden 
                                 || (row.false_alert_burden_ratio !== undefined ? `${Number(row.false_alert_burden_ratio).toFixed(2)}x` : (prev !== undefined && prev < 0.05 ? 'HIGH BURDEN' : 'ACCEPTABLE'));
-                              const isSafe = row.alert_fatigue_false_alarm_pct !== undefined 
-                                ? row.alert_fatigue_false_alarm_pct < 20.0 
-                                : (row.false_alert_burden_ratio !== undefined ? row.false_alert_burden_ratio <= 2.0 : burden === 'ACCEPTABLE');
+                              const isSafe = burden === 'ACCEPTABLE';
                               const settingName = prev !== undefined
                                 ? (prev >= 0.30 ? 'Tertiary Center' : prev >= 0.15 ? 'Regional Hospital' : prev >= 0.05 ? 'District Clinic' : 'Rural Primary Screen')
                                 : 'Screening';

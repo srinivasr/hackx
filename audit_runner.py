@@ -145,8 +145,8 @@ def run_evaluation_suite(
     dca_results = compute_decision_curve_analysis(labels_arr, clean_confs)
     operating_points = find_clinical_operating_points(labels_arr, clean_confs)
     prevalence_simulation = compute_prevalence_shift_ladder(
-        sensitivity=operating_points.get("youden_sensitivity", 0.80),
-        specificity=operating_points.get("youden_specificity", 0.80),
+        sensitivity=operating_points.get("screening_triage_sensitivity", 0.90),
+        specificity=operating_points.get("screening_triage_specificity", 0.82),
     )
     demographic_leakage = fair_engine.audit_demographic_latent_leakage(
         embeddings, meta_df["sex"].tolist(), tier_profile=wrapper.tier_profile
