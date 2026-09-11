@@ -94,8 +94,16 @@ print('Certificate generated at outputs/TrustCheck_Certificate_Sample.pdf')
         echo "Executing Chest Radiography (Portable Bedside MobileNet) Audit Battery..."
         run_cmd "python3 audit_runner.py --model assets/models/cxr_mobilenet_edge.onnx --metadata data/sample_metadata.csv --modality chest_xray --output-dir outputs/audit_run_cxr_mobilenet_edge"
         ;;
+    8)
+        echo "Executing Clinical NLP (Bio_ClinicalBERT on MIMIC-IV Notes) Audit Battery..."
+        run_cmd "python3 audit_runner.py --model assets/models/nlp_bioclinicalbert_risk.onnx --metadata data/sample_clinical_notes_metadata.csv --modality clinical_nlp --output-dir outputs/audit_run_nlp_clinical_bert"
+        ;;
+    9)
+        echo "Executing Clinical NLP (PubMedBERT on MedNLI Triage) Audit Battery..."
+        run_cmd "python3 audit_runner.py --model assets/models/nlp_pubmedbert_diagnostic.onnx --metadata data/sample_mednli_metadata.csv --modality clinical_nlp --output-dir outputs/audit_run_nlp_pubmedbert"
+        ;;
 *)
-echo "Usage: ./start.sh [1|2|3|4|5|6|7]"
+echo "Usage: ./start.sh [1|2|3|4|5|6|7|8|9]"
 echo "  1) Run pytest test suite"
 echo "  2) Run HLT-08 clinical audit battery (CheXNet X-Ray Hospital Benchmark)"
 echo "  3) Launch full stack (FastAPI + Vite UI)"
@@ -103,6 +111,8 @@ echo "  4) Generate retinal demo PDF certificate"
 echo "  5) Launch Streamlit Auditor Dashboard"
 echo "  6) Run Diabetic Retinopathy (Retinal Fundus ONNX) audit battery"
 echo "  7) Run Chest Radiography (Portable Bedside MobileNet ONNX) audit battery"
+echo "  8) Run Clinical NLP (Bio_ClinicalBERT on MIMIC-IV Notes) audit battery"
+echo "  9) Run Clinical NLP (PubMedBERT on MedNLI Triage) audit battery"
 exit 1
 ;;
 esac

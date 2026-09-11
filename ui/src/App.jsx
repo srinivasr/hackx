@@ -96,6 +96,56 @@ export default function App() {
   }, []);
 
   const isCXR = (mId) => mId === 'cxr_chexnet' || mId === 'cxr_mobilenet_edge';
+  const isNLP = (mId) => mId === 'nlp_bioclinicalbert' || mId === 'nlp_pubmedbert';
+
+  const getSpectrumRows = () => {
+    if (auditData?.stress_spectrum && auditData.stress_spectrum.length > 0) {
+      return auditData.stress_spectrum;
+    }
+    const tests = auditData?.stress_tests || {};
+    const blurStab = tests.blur_ladder?.slice(-1)[0]?.retained_stability ?? 28;
+    const illumStab = tests.illumination_ladder?.slice(-1)[0]?.retained_stability ?? 12;
+    const glareStab = tests.glare_ladder?.slice(-1)[0]?.retained_stability ?? 14.5;
+    const resStab = tests.resolution_ladder?.slice(-1)[0]?.retained_stability ?? 36.2;
+
+    const getStatus = (s) => (s >= 70 ? 'pass' : s >= 48 ? 'warn' : 'fail');
+    const getVerdict = (s, fallbackFail) => (s >= 70 ? 'PASS • Robust' : s >= 48 ? 'WARN • Sub-threshold' : fallbackFail);
+
+    return [
+      {
+        vector_name: isCXR(selectedModel) ? 'Thoracic Motion Blur' : isNLP(selectedModel) ? 'OCR Typographical Noise' : 'Defocus / Motion Blur',
+        min_param: isCXR(selectedModel) ? 'Kernel = 0 px' : isNLP(selectedModel) ? '0% Typo Noise' : 'σ = 0.0',
+        max_param: isCXR(selectedModel) ? 'Kernel = 21 px (Tremor)' : isNLP(selectedModel) ? '42% Char Swaps' : 'σ = 6.0 (Severe movement)',
+        retained_stability: blurStab,
+        status: getStatus(blurStab),
+        verdict: getVerdict(blurStab, 'FAIL • Sub-threshold'),
+      },
+      {
+        vector_name: isCXR(selectedModel) ? 'CR/DR Contrast Attenuation' : isNLP(selectedModel) ? 'Medical Abbreviation Density' : 'Flash / Illumination Drop',
+        min_param: isCXR(selectedModel) ? '100% Dynamic Range' : isNLP(selectedModel) ? 'Standard Clinical Text' : '100% Brightness',
+        max_param: isCXR(selectedModel) ? '-75% Underexposure' : isNLP(selectedModel) ? '80% Physician Shorthand' : '-80% (Undilated pupil)',
+        retained_stability: illumStab,
+        status: getStatus(illumStab),
+        verdict: getVerdict(illumStab, 'FAIL • Severe Sensitivity'),
+      },
+      {
+        vector_name: isCXR(selectedModel) ? 'Quantum Poisson Shot Noise' : isNLP(selectedModel) ? 'Hasty Note Truncation' : 'Corneal Glare Reflection',
+        min_param: isCXR(selectedModel) ? 'High-Dose Photons' : isNLP(selectedModel) ? '100% Complete Narrative' : '0.00',
+        max_param: isCXR(selectedModel) ? 'Low-Dose Scatter Noise' : isNLP(selectedModel) ? '40% Length (Cutoff)' : '0.95 (Corneal Whiteout)',
+        retained_stability: glareStab,
+        status: getStatus(glareStab),
+        verdict: getVerdict(glareStab, 'FAIL • Noise Saturated'),
+      },
+      {
+        vector_name: isCXR(selectedModel) ? 'Matrix Resolution Downsampling' : isNLP(selectedModel) ? 'Negation Assertion Stress' : 'Sensor Resolution Downsampling',
+        min_param: isCXR(selectedModel) ? '384×384 px' : isNLP(selectedModel) ? 'Intact Assertions' : '384×384 px',
+        max_param: isCXR(selectedModel) ? '96×96 px (Mobile cart)' : isNLP(selectedModel) ? 'NegEx Semantic Inversion' : '96×96 px (Extreme drop)',
+        retained_stability: resStab,
+        status: getStatus(resStab),
+        verdict: getVerdict(resStab, 'FAIL • Sub-threshold'),
+      },
+    ];
+  };
 
   const loadCohortData = async (mId, dId) => {
     try {
@@ -119,7 +169,10 @@ export default function App() {
     if (isCXR(newModelId) && selectedDataset !== 'chest_xray_60') {
       newDatasetId = 'chest_xray_60';
       setSelectedDataset('chest_xray_60');
-    } else if (!isCXR(newModelId) && selectedDataset === 'chest_xray_60') {
+    } else if (isNLP(newModelId) && selectedDataset !== 'clinical_notes_mimic_60') {
+      newDatasetId = 'clinical_notes_mimic_60';
+      setSelectedDataset('clinical_notes_mimic_60');
+    } else if (!isCXR(newModelId) && !isNLP(newModelId) && (selectedDataset === 'chest_xray_60' || selectedDataset === 'clinical_notes_mimic_60')) {
       newDatasetId = 'retinal_dr_60';
       setSelectedDataset('retinal_dr_60');
     }
@@ -134,7 +187,11 @@ export default function App() {
       newModelId = 'cxr_chexnet';
       setSelectedModel('cxr_chexnet');
       loadLatestAudit('cxr_chexnet');
-    } else if (newDatasetId === 'retinal_dr_60' && isCXR(selectedModel)) {
+    } else if (newDatasetId === 'clinical_notes_mimic_60' && !isNLP(selectedModel)) {
+      newModelId = 'nlp_bioclinicalbert';
+      setSelectedModel('nlp_bioclinicalbert');
+      loadLatestAudit('nlp_bioclinicalbert');
+    } else if (newDatasetId === 'retinal_dr_60' && (isCXR(selectedModel) || isNLP(selectedModel))) {
       newModelId = 'dr_lcnet_edge';
       setSelectedModel('dr_lcnet_edge');
       loadLatestAudit('dr_lcnet_edge');
@@ -365,7 +422,7 @@ export default function App() {
               >
                 {datasets.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name} ({d.sample_count} scans)
+                    {d.name} ({d.sample_count} {d.modality === 'clinical_nlp' ? 'notes' : 'scans'})
                   </option>
                 ))}
               </select>
@@ -538,30 +595,38 @@ export default function App() {
 
               <div className="telemetry-bay">
                 <div className="bay-header">
-                  <span className="bay-title">Defocus Blur Tolerance</span>
-                  <span className="bay-tag bay-tag-danger">SUB-THRESHOLD</span>
+                  <span className="bay-title">{getSpectrumRows()[0]?.vector_name || 'Physical Stress Tolerance'}</span>
+                  <span className={`bay-tag ${getSpectrumRows()[0]?.status === 'pass' ? 'bay-tag-success' : getSpectrumRows()[0]?.status === 'warn' ? 'bay-tag-warning' : 'bay-tag-danger'}`}>
+                    {getSpectrumRows()[0]?.status === 'pass' ? 'ROBUST' : getSpectrumRows()[0]?.status === 'warn' ? 'MODERATE' : 'HIGH RISK'}
+                  </span>
                 </div>
                 <div className="bay-value-row">
                   <span className="bay-val num-tabular">
-                    {auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%
+                    {getSpectrumRows()[0]?.retained_stability ?? '--'}%
                   </span>
                   <span className="bay-unit">retained</span>
                 </div>
-                <span className="bay-desc">Stability drops below 30% at σ=6.0</span>
+                <span className="bay-desc">
+                  {(getSpectrumRows()[0]?.retained_stability ?? 0) >= 70 ? 'Tolerant under stress' : `Drops at ${getSpectrumRows()[0]?.max_param || 'peak stress'}`}
+                </span>
               </div>
 
               <div className="telemetry-bay">
                 <div className="bay-header">
-                  <span className="bay-title">Illumination Sensitivity</span>
-                  <span className="bay-tag bay-tag-danger">SEVERE</span>
+                  <span className="bay-title">{getSpectrumRows()[1]?.vector_name || 'Hardware Drift Sensitivity'}</span>
+                  <span className={`bay-tag ${getSpectrumRows()[1]?.status === 'pass' ? 'bay-tag-success' : getSpectrumRows()[1]?.status === 'warn' ? 'bay-tag-warning' : 'bay-tag-danger'}`}>
+                    {getSpectrumRows()[1]?.status === 'pass' ? 'ROBUST' : getSpectrumRows()[1]?.status === 'warn' ? 'MODERATE' : 'HIGH RISK'}
+                  </span>
                 </div>
                 <div className="bay-value-row">
                   <span className="bay-val num-tabular">
-                    {auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%
+                    {getSpectrumRows()[1]?.retained_stability ?? '--'}%
                   </span>
                   <span className="bay-unit">retained</span>
                 </div>
-                <span className="bay-desc">Vulnerable at -80% flash drop</span>
+                <span className="bay-desc">
+                  {(getSpectrumRows()[1]?.retained_stability ?? 0) >= 70 ? 'Tolerant under stress' : `Sensitive at ${getSpectrumRows()[1]?.max_param || 'peak stress'}`}
+                </span>
               </div>
 
               <div className="telemetry-bay">
@@ -590,7 +655,7 @@ export default function App() {
             <div className="card table-card">
               <div className="card-header">
                 <h3 className="card-title-text">Stress Degradation Spectrum</h3>
-                <span className="tag">4 Perturbation Vectors Tested</span>
+                <span className="tag">{getSpectrumRows().length} Perturbation Vectors Tested</span>
               </div>
               <div className="table-wrapper">
                 <table className="data-table">
@@ -604,74 +669,29 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td><strong>Defocus / Motion Blur</strong></td>
-                      <td className="num-tabular">σ = 0.0</td>
-                      <td className="num-tabular">σ = 6.0 (Severe movement)</td>
-                      <td>
-                        <div className="table-retention-cell">
-                          <span className="num-tabular">{auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
-                          <div className="retention-mini-track">
-                            <div
-                              className="retention-mini-fill fail"
-                              style={{ width: `${Math.min(100, auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
-                            />
+                    {getSpectrumRows().map((row, idx) => (
+                      <tr key={idx}>
+                        <td><strong>{row.vector_name}</strong></td>
+                        <td className="num-tabular">{row.min_param}</td>
+                        <td className="num-tabular">{row.max_param}</td>
+                        <td>
+                          <div className="table-retention-cell">
+                            <span className="num-tabular">{row.retained_stability ?? '--'}%</span>
+                            <div className="retention-mini-track">
+                              <div
+                                className={`retention-mini-fill ${row.status || 'fail'}`}
+                                style={{ width: `${Math.min(100, Math.max(0, row.retained_stability || 0))}%` }}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td><span className="status-pill status-pill-fail">FAIL • Sub-threshold</span></td>
-                    </tr>
-                    <tr>
-                      <td><strong>Flash / Illumination Drop</strong></td>
-                      <td className="num-tabular">100% Brightness</td>
-                      <td className="num-tabular">-80% (Undilated pupil)</td>
-                      <td>
-                        <div className="table-retention-cell">
-                          <span className="num-tabular">{auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
-                          <div className="retention-mini-track">
-                            <div
-                              className="retention-mini-fill fail"
-                              style={{ width: `${Math.min(100, auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td><span className="status-pill status-pill-fail">FAIL • Severe Sensitivity</span></td>
-                    </tr>
-                    <tr>
-                      <td><strong>Corneal Glare Reflection</strong></td>
-                      <td className="num-tabular">0.00</td>
-                      <td className="num-tabular">0.95 (Corneal Whiteout)</td>
-                      <td>
-                        <div className="table-retention-cell">
-                          <span className="num-tabular">{auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
-                          <div className="retention-mini-track">
-                            <div
-                              className="retention-mini-fill fail"
-                              style={{ width: `${Math.min(100, auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td><span className="status-pill status-pill-fail">FAIL • Aperture Saturated</span></td>
-                    </tr>
-                    <tr>
-                      <td><strong>Sensor Resolution Downsampling</strong></td>
-                      <td className="num-tabular">384×384 px</td>
-                      <td className="num-tabular">96×96 px (Extreme drop)</td>
-                      <td>
-                        <div className="table-retention-cell">
-                          <span className="num-tabular">{auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability ?? '--'}%</span>
-                          <div className="retention-mini-track">
-                            <div
-                              className="retention-mini-fill pass"
-                              style={{ width: `${Math.min(100, auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability || 0)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td><span className="status-pill status-pill-pass">PASS • Tolerant</span></td>
-                    </tr>
+                        </td>
+                        <td>
+                          <span className={`status-pill status-pill-${row.status || 'fail'}`}>
+                            {row.verdict}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

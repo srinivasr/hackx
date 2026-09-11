@@ -595,6 +595,7 @@
 
 .retention-mini-fill.pass { background: var(--success); }
 .retention-mini-fill.fail { background: var(--danger); }
+.retention-mini-fill.warn { background: var(--warning); }
 
 .status-pill {
   display: inline-flex;

@@ -240,6 +240,155 @@ class TabularEHRSuite:
         return features + noise
 
 
+
+# ---------------------------------------------------------------------------
+# 4. Clinical NLP Suite (EHR Clinical Notes, Discharge Summaries & MedNLI)
+# ---------------------------------------------------------------------------
+
+class ClinicalTextSuite:
+    name = "clinical_nlp"
+    description = "EHR Clinical Notes, Discharge Summaries & Clinical Diagnostic NLP Stress Battery"
+
+    ABBREVIATIONS = {
+        "shortness of breath": "SOB",
+        "chest pain": "CP",
+        "hypertension": "HTN",
+        "type 2 diabetes": "T2DM",
+        "diabetes mellitus": "DM",
+        "congestive heart failure": "CHF",
+        "myocardial infarction": "MI",
+        "chronic obstructive pulmonary disease": "COPD",
+        "history of": "h/o",
+        "complains of": "c/o",
+        "intensive care unit": "ICU",
+        "emergency department": "ED",
+        "vital signs stable": "VSS",
+        "blood pressure": "BP",
+        "heart rate": "HR",
+        "respiratory rate": "RR",
+        "treatment": "tx",
+        "diagnosis": "dx",
+        "prescription": "rx",
+        "patient": "pt",
+    }
+
+    OCR_CHAR_MAP = {
+        "l": "1", "1": "l",
+        "O": "0", "0": "O",
+        "m": "rn",
+        "d": "cl",
+        "w": "vv",
+        "e": "c",
+        "s": "5", "5": "s",
+    }
+
+    @staticmethod
+    def get_corruption_ladder() -> Dict[str, Any]:
+        return {
+            "ocr_typographical_noise": ClinicalTextSuite.apply_ocr_typos,
+            "abbreviation_density": ClinicalTextSuite.apply_abbreviations,
+            "note_truncation": ClinicalTextSuite.apply_note_truncation,
+        }
+
+    @staticmethod
+    def apply_ocr_typos(text: str, severity: int, seed: Optional[int] = 42) -> str:
+        """Simulates OCR scanner character degradation and typographical noise in EHR physician notes."""
+        if not isinstance(text, str) or len(text) == 0:
+            return text
+        rates = {1: 0.04, 2: 0.09, 3: 0.16, 4: 0.28, 5: 0.42}
+        rate = rates.get(severity, 0.16)
+        rng = np.random.default_rng(seed)
+        chars = list(text)
+        for i in range(len(chars)):
+            if rng.uniform(0, 1) < rate:
+                c = chars[i]
+                if c in ClinicalTextSuite.OCR_CHAR_MAP:
+                    chars[i] = ClinicalTextSuite.OCR_CHAR_MAP[c]
+                elif c.isalpha() and rng.uniform(0, 1) < 0.4:
+                    chars[i] = chr(ord('a') + rng.integers(0, 26)) if c.islower() else chr(ord('A') + rng.integers(0, 26))
+        return "".join(chars)
+
+    @staticmethod
+    def apply_abbreviations(text: str, severity: int) -> str:
+        """Contracts clinical terminology into dense physician shorthand."""
+        if not isinstance(text, str):
+            return text
+        out = text
+        import re
+        for term, abbr in ClinicalTextSuite.ABBREVIATIONS.items():
+            pattern = re.compile(re.escape(term), re.IGNORECASE)
+            if pattern.search(out):
+                if (severity / 5.0) >= 0.3:
+                    out = pattern.sub(abbr, out)
+        return out
+
+    @staticmethod
+    def apply_note_truncation(text: str, severity: int) -> str:
+        """Simulates incomplete or hasty clinical documentation cut-off."""
+        if not isinstance(text, str):
+            return text
+        retention_factors = {1: 0.90, 2: 0.75, 3: 0.55, 4: 0.35, 5: 0.20}
+        factor = retention_factors.get(severity, 0.55)
+        words = text.split()
+        if len(words) <= 3:
+            return text
+        cut = max(3, int(len(words) * factor))
+        return " ".join(words[:cut])
+
+    @staticmethod
+    def get_shortcuts() -> Dict[str, Any]:
+        return {
+            "negation_inversion": ClinicalTextSuite.inject_negation_inversion,
+            "demographic_pronoun_swap": ClinicalTextSuite.swap_demographic_markers,
+            "clerical_banner_stamp": ClinicalTextSuite.inject_clerical_banner,
+        }
+
+    @staticmethod
+    def inject_negation_inversion(text: str) -> str:
+        """Inverts medical negation phrases to stress-test clinical NegEx comprehension."""
+        if not isinstance(text, str):
+            return text
+        import re
+        neg_pairs = [
+            (r"\bdenies\b", "reports"),
+            (r"\bdenied\b", "reported"),
+            (r"\bno acute\b", "acute"),
+            (r"\bnegative for\b", "positive for"),
+            (r"\babsent\b", "present"),
+            (r"\bwithout\b", "with"),
+            (r"\bcleared for\b", "critical risk for"),
+        ]
+        out = text
+        for pat, rep in neg_pairs:
+            out = re.sub(pat, rep, out, flags=re.IGNORECASE)
+        return out
+
+    @staticmethod
+    def swap_demographic_markers(text: str) -> str:
+        """Swaps gender pronouns and demographic mentions to test for social bias leakage."""
+        if not isinstance(text, str):
+            return text
+        import re
+        swaps = [
+            (r"\bhe\b", "she"), (r"\bHe\b", "She"),
+            (r"\bhis\b", "her"), (r"\bHis\b", "Her"),
+            (r"\bhim\b", "her"), (r"\bhimself\b", "herself"),
+            (r"\bmale\b", "female"), (r"\bMale\b", "Female"),
+            (r"\bman\b", "woman"), (r"\bgentleman\b", "lady"),
+        ]
+        out = text
+        for pat, rep in swaps:
+            out = re.sub(pat, rep, out)
+        return out
+
+    @staticmethod
+    def inject_clerical_banner(text: str) -> str:
+        """Appends clerical administrative metadata to test for false-positive administrative shortcut triggers."""
+        if not isinstance(text, str):
+            return text
+        return f"[EHR CLERICAL RECORD #9824 - BETH ISRAEL ICUR TRANSCRIPTION COMPLETE] {text}"
+
+
 def get_modality_suite(modality_name: str):
     mapping = {
         "chest_xray": RadiologySuite,
@@ -249,6 +398,10 @@ def get_modality_suite(modality_name: str):
         "fundus": OphthalmologySuite,
         "tabular_ehr": TabularEHRSuite,
         "ehr": TabularEHRSuite,
+        "clinical_nlp": ClinicalTextSuite,
+        "clinical_text": ClinicalTextSuite,
+        "nlp": ClinicalTextSuite,
+        "text": ClinicalTextSuite,
     }
     suite_cls = mapping.get(modality_name.lower().strip(), RadiologySuite)
     return suite_cls()

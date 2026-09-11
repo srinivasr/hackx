@@ -175,27 +175,40 @@ def generate_deployment_certificate(audit_data: Dict[str, Any], output_pdf_path:
         ]
     ]
 
-    tests = audit_data.get("stress_tests", {})
-    vector_names = {
-        "blur_ladder": ("Defocus / Motion Blur", "σ=0.0", "σ=6.0"),
-        "illumination_ladder": ("Flash / Illumination Drop", "0%", "-80%"),
-        "glare_ladder": ("Corneal Glare Reflection", "0.00", "0.95"),
-        "resolution_ladder": ("Sensor Downscaling", "384px", "96px"),
-    }
-
-    for key, (label, min_s, max_s) in vector_names.items():
-        ladder = tests.get(key, [])
-        if ladder:
-            min_stab = ladder[-1].get("retained_stability", 0.0)
+    spectrum = audit_data.get("stress_spectrum", [])
+    if spectrum:
+        for item in spectrum:
+            min_stab = item.get("retained_stability", 0.0)
             status = "PASS" if min_stab >= 50.0 else "FAIL"
             color_hex = "#16a34a" if status == "PASS" else "#dc2626"
             stress_rows.append([
-                Paragraph(label, body_style),
-                Paragraph(min_s, body_style),
-                Paragraph(max_s, body_style),
+                Paragraph(item.get("vector_name", ""), body_style),
+                Paragraph(str(item.get("min_param", "")), body_style),
+                Paragraph(str(item.get("max_param", "")), body_style),
                 Paragraph(f"{min_stab}%", body_style),
                 Paragraph(f"<b><font color='{color_hex}'>{status}</font></b>", body_style),
             ])
+    else:
+        tests = audit_data.get("stress_tests", {})
+        vector_names = {
+            "blur_ladder": ("Defocus / Motion Blur", "σ=0.0", "σ=6.0"),
+            "illumination_ladder": ("Flash / Illumination Drop", "0%", "-80%"),
+            "glare_ladder": ("Corneal Glare Reflection", "0.00", "0.95"),
+            "resolution_ladder": ("Sensor Downscaling", "384px", "96px"),
+        }
+        for key, (label, min_s, max_s) in vector_names.items():
+            ladder = tests.get(key, [])
+            if ladder:
+                min_stab = ladder[-1].get("retained_stability", 0.0)
+                status = "PASS" if min_stab >= 50.0 else "FAIL"
+                color_hex = "#16a34a" if status == "PASS" else "#dc2626"
+                stress_rows.append([
+                    Paragraph(label, body_style),
+                    Paragraph(min_s, body_style),
+                    Paragraph(max_s, body_style),
+                    Paragraph(f"{min_stab}%", body_style),
+                    Paragraph(f"<b><font color='{color_hex}'>{status}</font></b>", body_style),
+                ])
 
     stress_table = Table(stress_rows, colWidths=[160, 80, 80, 100, 100])
     stress_table.setStyle(TableStyle([

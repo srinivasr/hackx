@@ -64,7 +64,8 @@ def compute_brier_score(probs: np.ndarray, labels: np.ndarray) -> float:
     n_samples, n_classes = probs.shape
     one_hot = np.zeros((n_samples, n_classes))
     for i, l in enumerate(labels):
-        one_hot[i, int(l)] = 1.0
+        idx = min(max(int(l), 0), n_classes - 1) if n_classes > 0 else 0
+        one_hot[i, idx] = 1.0
     return float(np.mean(np.sum((probs - one_hot) ** 2, axis=1)))
 
 
