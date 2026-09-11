@@ -582,7 +582,8 @@ export default function App() {
                 <h3 className="card-title-text">Stress Degradation Spectrum</h3>
                 <span className="tag">4 Perturbation Vectors Tested</span>
               </div>
-              <table className="data-table">
+              <div className="table-wrapper">
+                <table className="data-table">
                 <thead>
                   <tr>
                     <th>Stress Vector</th>
@@ -663,6 +664,7 @@ export default function App() {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         )}
@@ -670,12 +672,16 @@ export default function App() {
         {/* TAB 2: COHORT STRESS SUITE (SOTA) */}
         {activeTab === 'cohort' && (
           <div className="cohort-container">
-            {/* Top Cohort Scorecard */}
-            <div className="card verdict-card">
-              <div className="verdict-header">
+            {/* Top Cohort Dossier Hero Deck */}
+            <div className="dossier-hero">
+              <div className="dossier-main">
                 <div>
-                  <h2 className="verdict-title">Multicenter Cohort Stress-Testing Battery</h2>
-                  <p className="verdict-policy">
+                  <div className="dossier-eyebrow-row">
+                    <span className="dossier-kicker">MULTICENTER STRESS BATTERY</span>
+                    <span className="dossier-reg-tag">FDA SaMD / CDSCO PCCP PROTOCOL</span>
+                  </div>
+                  <h2 className="dossier-headline">Multicenter Cohort Stress-Testing Battery</h2>
+                  <p className="dossier-summary">
                     Evaluating 60-patient cohort across hardware corruptions, subgroup underdiagnosis, and shortcut learning.
                   </p>
                   <div className="cohort-meta-strip">
@@ -685,66 +691,126 @@ export default function App() {
                     <span className="meta-pill">Protocol: FDA SaMD / CDSCO PCCP</span>
                   </div>
                 </div>
-                <div className="score-gauge">
-                  <span className="score-number">{cohortData?.trust_score ?? '--'}</span>
-                  <span className="score-max">/ 100</span>
-                  <span className="score-label">Composite TrustScore</span>
+
+                <div className="dossier-action-bar">
+                  <span className="badge badge-warning">
+                    <AlertTriangle size={13} /> {cohortData?.verdict || 'CAUTION: RESTRICTED DEPLOYMENT'}
+                  </span>
+                  <button
+                    onClick={handleRunCohortAudit}
+                    disabled={cohortLoading}
+                    className="btn btn-primary"
+                  >
+                    <RefreshCw size={14} className={cohortLoading ? 'spin' : ''} />
+                    {cohortLoading ? 'Auditing Multicenter Cohort...' : 'Run Cohort Audit Battery'}
+                  </button>
+                  <a
+                    href={`/api/audit/cohort-pdf?model_id=${selectedModel}&dataset_id=${selectedDataset}`}
+                    download
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-secondary"
+                  >
+                    <Download size={14} /> Download FDA SaMD Dossier (PDF)
+                  </a>
                 </div>
               </div>
 
-              <div className="verdict-actions">
-                <span className="badge badge-warning">
-                  <AlertTriangle size={13} /> {cohortData?.verdict || 'CAUTION: RESTRICTED DEPLOYMENT'}
-                </span>
-                <button
-                  onClick={handleRunCohortAudit}
-                  disabled={cohortLoading}
-                  className="btn btn-primary"
-                >
-                  <RefreshCw size={14} className={cohortLoading ? 'spin' : ''} />
-                  {cohortLoading ? 'Auditing Multicenter Cohort...' : 'Run Cohort Audit Battery'}
-                </button>
-                <a
-                  href={`/api/audit/cohort-pdf?model_id=${selectedModel}&dataset_id=${selectedDataset}`}
-                  download
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn btn-secondary"
-                >
-                  <Download size={14} /> Download FDA SaMD Dossier (PDF)
-                </a>
+              <div className="dossier-score-card">
+                <div>
+                  <div className="score-dial-header">
+                    <div>
+                      <span className="score-number num-tabular">{cohortData?.trust_score ?? '--'}</span>
+                      <span className="score-max">/100</span>
+                    </div>
+                  </div>
+                  <div className="score-label-meta">Composite TrustScore</div>
+                </div>
+
+                <div className="score-submetrics">
+                  <div className="submetric-row">
+                    <span>Clinical Corruption Robustness</span>
+                    <span className="num-tabular">62.0%</span>
+                  </div>
+                  <div className="submetric-track">
+                    <div className="submetric-fill warn" style={{ width: '62%' }} />
+                  </div>
+
+                  <div className="submetric-row">
+                    <span>Subgroup Equity Parity</span>
+                    <span className="num-tabular">66.7%</span>
+                  </div>
+                  <div className="submetric-track">
+                    <div className="submetric-fill fail" style={{ width: '66.7%' }} />
+                  </div>
+
+                  <div className="submetric-row">
+                    <span>Safe Deferral Yield</span>
+                    <span className="num-tabular">85.0%</span>
+                  </div>
+                  <div className="submetric-track">
+                    <div className="submetric-fill pass" style={{ width: '85%' }} />
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* 4 Metric Quad Cards */}
-            <div className="metric-grid">
-              <div className="metric-card">
-                <span className="metric-title">Clinical Corruption Error (cMCE)</span>
-                <span className="metric-val">{cohortData?.metrics?.clinical_mce?.clinical_mean_corruption_error_cmce ?? '0.38'}</span>
-                <span className="metric-sub">Hendrycks &amp; Dietterich (ICLR 2019)</span>
+            {/* 4 Connected Telemetry Bays */}
+            <div className="telemetry-strip">
+              <div className="telemetry-bay">
+                <div className="bay-header">
+                  <span className="bay-title">Clinical Corruption Error</span>
+                  <span className="bay-tag bay-tag-warning">cMCE</span>
+                </div>
+                <div className="bay-value-row">
+                  <span className="bay-val num-tabular">{cohortData?.metrics?.clinical_mce?.clinical_mean_corruption_error_cmce ?? '0.38'}</span>
+                  <span className="bay-unit">index</span>
+                </div>
+                <span className="bay-desc">Hendrycks &amp; Dietterich (ICLR 2019)</span>
               </div>
-              <div className="metric-card">
-                <span className="metric-title">Worst-Group FNR</span>
-                <span className="metric-val status-fail">
-                  {(cohortData?.metrics?.worst_group_benchmarks?.worst_group_fnr ? (cohortData.metrics.worst_group_benchmarks.worst_group_fnr * 100).toFixed(1) : '33.3')}%
-                </span>
-                <span className="metric-sub">Stratum: {cohortData?.metrics?.worst_group_benchmarks?.worst_performing_group || 'sex:F'} (WILDS 2021)</span>
+
+              <div className="telemetry-bay">
+                <div className="bay-header">
+                  <span className="bay-title">Worst-Group FNR</span>
+                  <span className="bay-tag bay-tag-danger">HIGH RISK</span>
+                </div>
+                <div className="bay-value-row">
+                  <span className="bay-val num-tabular" style={{ color: 'var(--danger)' }}>
+                    {(cohortData?.metrics?.worst_group_benchmarks?.worst_group_fnr ? (cohortData.metrics.worst_group_benchmarks.worst_group_fnr * 100).toFixed(1) : '33.3')}%
+                  </span>
+                  <span className="bay-unit">FNR</span>
+                </div>
+                <span className="bay-desc">Stratum: {cohortData?.metrics?.worst_group_benchmarks?.worst_performing_group || 'sex:F'} (WILDS 2021)</span>
               </div>
-              <div className="metric-card">
-                <span className="metric-title">Selective Deferral Threshold</span>
-                <span className="metric-val">
-                  u* = {cohortData?.metrics?.selective_suppression_policy?.optimal_deferral_threshold_u ?? '0.72'}
-                </span>
-                <span className="metric-sub">
+
+              <div className="telemetry-bay">
+                <div className="bay-header">
+                  <span className="bay-title">Selective Deferral</span>
+                  <span className="bay-tag bay-tag-success">OPTIMAL</span>
+                </div>
+                <div className="bay-value-row">
+                  <span className="bay-val num-tabular">
+                    u* = {cohortData?.metrics?.selective_suppression_policy?.optimal_deferral_threshold_u ?? '0.72'}
+                  </span>
+                </div>
+                <span className="bay-desc">
                   {cohortData?.metrics?.selective_suppression_policy?.expected_suppression_rate_pct ?? '15.0'}% cases routed to dual-read (JAMIA)
                 </span>
               </div>
-              <div className="metric-card">
-                <span className="metric-title">G-AUDIT Shortcut Hazards</span>
-                <span className="metric-val" style={{ color: 'var(--warning)' }}>
-                  {cohortData?.metrics?.gaudit_shortcut_risk?.high_risk_shortcuts?.length ?? '2'} Flagged
-                </span>
-                <span className="metric-sub">Attribute Utility vs Detectability (FDA 2025)</span>
+
+              <div className="telemetry-bay">
+                <div className="bay-header">
+                  <span className="bay-title">G-AUDIT Hazards</span>
+                  <span className="bay-tag bay-tag-warning">
+                    {cohortData?.metrics?.gaudit_shortcut_risk?.high_risk_shortcuts?.length ?? '2'} FLAGGED
+                  </span>
+                </div>
+                <div className="bay-value-row">
+                  <span className="bay-val num-tabular" style={{ color: 'var(--warning)' }}>
+                    {cohortData?.metrics?.gaudit_shortcut_risk?.high_risk_shortcuts?.length ?? '2'} Shortcuts
+                  </span>
+                </div>
+                <span className="bay-desc">Attribute Utility vs Detectability (FDA 2025)</span>
               </div>
             </div>
 
@@ -761,7 +827,8 @@ export default function App() {
                     </div>
                     <span className="tag">Latent Probe</span>
                   </div>
-                  <table className="data-table">
+                  <div className="table-wrapper">
+                    <table className="data-table">
                     <thead>
                       <tr>
                         <th>Non-Clinical Attribute</th>
@@ -810,6 +877,7 @@ export default function App() {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
 
                 {/* Prevalence Shift Table */}
@@ -821,7 +889,8 @@ export default function App() {
                     </div>
                     <span className="tag">Bayes PPV</span>
                   </div>
-                  <table className="data-table">
+                  <div className="table-wrapper">
+                    <table className="data-table">
                     <thead>
                       <tr>
                         <th>Clinical Setting (Prevalence)</th>
@@ -848,6 +917,7 @@ export default function App() {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
 
@@ -862,7 +932,8 @@ export default function App() {
                     </div>
                     <span className="tag">DCA Curve</span>
                   </div>
-                  <table className="data-table">
+                  <div className="table-wrapper">
+                    <table className="data-table">
                     <thead>
                       <tr>
                         <th>Decision Threshold (pt)</th>
@@ -897,6 +968,7 @@ export default function App() {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
 
                 {/* Hard Safety Vetoes & Contraindications */}
@@ -1168,7 +1240,8 @@ export default function App() {
               </div>
 
               {arenaModality === 'retinal_dr' ? (
-                <table className="data-table arena-table">
+                <div className="table-wrapper">
+                  <table className="data-table arena-table">
                   <thead>
                     <tr>
                       <th>Evaluation Metric</th>
@@ -1222,8 +1295,10 @@ export default function App() {
                     </tr>
                   </tbody>
                 </table>
+                </div>
               ) : (
-                <table className="data-table arena-table">
+                <div className="table-wrapper">
+                  <table className="data-table arena-table">
                   <thead>
                     <tr>
                       <th>Evaluation Metric</th>
@@ -1277,6 +1352,7 @@ export default function App() {
                     </tr>
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </div>

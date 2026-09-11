@@ -538,11 +538,18 @@
   font-family: var(--font-mono);
 }
 
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
   font-size: 12px;
+  min-width: 560px;
 }
 
 .data-table th {
@@ -968,6 +975,175 @@
   gap: 6px;
 }
 
+/* ── Cohort Suite Layout & Components ────────────────────── */
+.cohort-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cohort-meta-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface-sunken);
+  border: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.cohort-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.veto-box {
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+  transition: background var(--transition-fast);
+}
+
+.veto-box:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.veto-box-icon {
+  color: var(--danger);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.veto-box-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--danger);
+  margin-bottom: 3px;
+  letter-spacing: 0.02em;
+}
+
+.veto-box-desc {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Fallback & Legacy Verdict / Metric Grid Support */
+.verdict-card {
+  margin-bottom: 0;
+}
+
+.verdict-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.verdict-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.015em;
+  margin-bottom: 6px;
+}
+
+.verdict-policy {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.score-gauge {
+  background: var(--bg-surface-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 14px 20px;
+  text-align: center;
+  min-width: 140px;
+  flex-shrink: 0;
+}
+
+.score-label {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-top: 5px;
+  font-weight: 600;
+}
+
+.verdict-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 0;
+}
+
+.metric-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.metric-title {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: block;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.metric-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 6px 0 2px 0;
+  display: block;
+  font-family: var(--font-mono);
+  line-height: 1.1;
+}
+
+.metric-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
 /* ── Ingestion Modal ─────────────────────────────────────── */
 .modal-backdrop {
   position: fixed;
@@ -1121,5 +1297,476 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ==========================================================================
+   COMPREHENSIVE RESPONSIVE DESIGN SUITE
+   (Mobile, Tablet, Desktop, 2K/4K Monitors, Conference TVs)
+   ========================================================================== */
+
+/* ── Tablet & Small Laptops (<= 1024px) ──────────────────── */
+@media (max-width: 1024px) {
+  .content {
+    padding: 16px 20px;
+  }
+
+  .cohort-two-col {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .studio-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .viewer-split {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .image-viewport {
+    min-height: 280px;
+  }
+}
+
+/* ── Mobile Landscape & Small Tablet (<= 768px) ─────────── */
+@media (max-width: 768px) {
+  .header {
+    height: auto;
+    min-height: 52px;
+    padding: 10px 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .header-brand {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .header-controls {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .selector-group {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .model-selector-wrapper {
+    flex: 1 1 auto;
+    min-width: 140px;
+  }
+
+  .model-select {
+    width: 100%;
+  }
+
+  .tab-strip {
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 16px;
+    scrollbar-width: none;
+  }
+
+  .tab-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab-btn {
+    flex-shrink: 0;
+    padding: 9px 12px;
+  }
+
+  .content {
+    padding: 14px 14px;
+  }
+
+  .dossier-hero {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .dossier-action-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .dossier-action-bar .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .telemetry-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .telemetry-bay:nth-child(2) {
+    border-right: none;
+  }
+
+  .telemetry-bay:nth-child(1),
+  .telemetry-bay:nth-child(2) {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .viewer-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .viewer-stats {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .biomarker-chips {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .failure-comparison {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .comparison-divider {
+    text-align: center;
+    margin: 4px 0;
+  }
+
+  .modal-window {
+    max-width: 100%;
+    padding: 16px;
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+
+  .modal-tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+
+  .modal-tab-btn {
+    flex-shrink: 0;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .modal-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Mobile Portrait (<= 480px) ─────────────────────────── */
+@media (max-width: 480px) {
+  .header {
+    padding: 10px 12px;
+  }
+
+  .brand-title {
+    font-size: 13.5px;
+  }
+
+  .brand-badge {
+    display: none;
+  }
+
+  .content {
+    padding: 12px 10px;
+  }
+
+  .dossier-main {
+    padding: 14px;
+  }
+
+  .dossier-headline {
+    font-size: 17px;
+  }
+
+  .dossier-summary {
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+
+  .dossier-score-card {
+    padding: 14px;
+  }
+
+  .score-number {
+    font-size: 28px;
+  }
+
+  .telemetry-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .telemetry-bay {
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 12px 14px;
+  }
+
+  .telemetry-bay:last-child {
+    border-bottom: none;
+  }
+
+  .bay-val {
+    font-size: 20px;
+  }
+
+  .biomarker-chips {
+    grid-template-columns: 1fr;
+  }
+
+  .table-card .card-header {
+    padding: 10px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .btn {
+    padding: 6px 9px;
+    font-size: 11px;
+  }
+}
+
+/* ── Large Desktop & WQHD Ultrawide (>= 1680px) ──────────── */
+@media (min-width: 1680px) {
+  .content {
+    max-width: 1720px;
+    padding: 26px 36px;
+  }
+
+  body {
+    font-size: 14px;
+  }
+
+  .brand-title {
+    font-size: 16px;
+  }
+
+  .dossier-headline {
+    font-size: 22px;
+  }
+
+  .score-number {
+    font-size: 38px;
+  }
+
+  .bay-val {
+    font-size: 28px;
+  }
+
+  .studio-container {
+    grid-template-columns: 360px 1fr;
+    gap: 22px;
+  }
+
+  .viewer-split {
+    grid-template-columns: 420px 1fr;
+    gap: 22px;
+  }
+
+  .image-viewport {
+    min-height: 420px;
+  }
+
+  .fundus-render {
+    max-height: 420px;
+  }
+}
+
+/* ── 2K Ultrawide & 55"-65" Conference TVs (>= 2200px) ───── */
+@media (min-width: 2200px) {
+  body {
+    font-size: 16.5px;
+    line-height: 1.6;
+  }
+
+  .content {
+    max-width: 2360px;
+    padding: 34px 48px;
+  }
+
+  .header {
+    height: 64px;
+    padding: 0 48px;
+  }
+
+  .brand-title {
+    font-size: 20px;
+  }
+
+  .brand-badge {
+    font-size: 12px;
+    padding: 3px 8px;
+  }
+
+  .tab-btn {
+    font-size: 14.5px;
+    padding: 14px 22px;
+  }
+
+  .btn {
+    padding: 9px 18px;
+    font-size: 13.5px;
+  }
+
+  .model-select {
+    font-size: 13.5px;
+  }
+
+  .dossier-hero {
+    grid-template-columns: 1fr 380px;
+    gap: 24px;
+  }
+
+  .dossier-headline {
+    font-size: 26px;
+  }
+
+  .dossier-summary {
+    font-size: 15px;
+    max-width: 1200px;
+  }
+
+  .score-number {
+    font-size: 46px;
+  }
+
+  .bay-val {
+    font-size: 32px;
+  }
+
+  .studio-container {
+    grid-template-columns: 440px 1fr;
+    gap: 26px;
+  }
+
+  .viewer-split {
+    grid-template-columns: 520px 1fr;
+    gap: 26px;
+  }
+
+  .image-viewport {
+    min-height: 520px;
+  }
+
+  .fundus-render {
+    max-height: 520px;
+  }
+
+  .data-table {
+    font-size: 14px;
+  }
+
+  .data-table th {
+    font-size: 12px;
+    padding: 13px 20px;
+  }
+
+  .data-table td {
+    padding: 14px 20px;
+  }
+}
+
+/* ── 4K Native Ultra-HD TVs & Projectors (>= 3200px) ─────── */
+@media (min-width: 3200px) {
+  body {
+    font-size: 19px;
+    line-height: 1.65;
+  }
+
+  .content {
+    max-width: 3400px;
+    padding: 48px 72px;
+  }
+
+  .header {
+    height: 76px;
+    padding: 0 72px;
+  }
+
+  .brand-title {
+    font-size: 26px;
+  }
+
+  .tab-btn {
+    font-size: 17px;
+    padding: 18px 30px;
+  }
+
+  .btn {
+    padding: 12px 24px;
+    font-size: 16px;
+  }
+
+  .dossier-headline {
+    font-size: 32px;
+  }
+
+  .dossier-summary {
+    font-size: 18px;
+    max-width: 1600px;
+  }
+
+  .score-number {
+    font-size: 58px;
+  }
+
+  .bay-val {
+    font-size: 42px;
+  }
+
+  .studio-container {
+    grid-template-columns: 560px 1fr;
+    gap: 36px;
+  }
+
+  .viewer-split {
+    grid-template-columns: 700px 1fr;
+    gap: 36px;
+  }
+
+  .image-viewport {
+    min-height: 680px;
+  }
+
+  .fundus-render {
+    max-height: 680px;
+  }
+
+  .data-table {
+    font-size: 16px;
+  }
+
+  .data-table th {
+    font-size: 14px;
+    padding: 16px 28px;
+  }
+
+  .data-table td {
+    padding: 18px 28px;
   }
 }
