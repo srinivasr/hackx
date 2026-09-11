@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -31,6 +31,10 @@ export default function App() {
   const [sampleKey, setSampleKey] = useState('sample_clinical_pass');
   const [liveStressResult, setLiveStressResult] = useState(null);
   const [stressLoading, setStressLoading] = useState(false);
+
+  // Debounce & race condition tracking for live slider
+  const debounceTimerRef = useRef(null);
+  const currentRequestIdRef = useRef(0);
 
   // Fetch registered models & initial audit data
   useEffect(() => {
@@ -81,8 +85,9 @@ export default function App() {
     }
   };
 
-  // Live single-stress slider trigger
+  // Live single-stress slider trigger with race condition suppression
   const runLiveStress = async (type, intensity, sample) => {
+    const reqId = ++currentRequestIdRef.current;
     setStressLoading(true);
     try {
       const formData = new FormData();
@@ -96,19 +101,42 @@ export default function App() {
         body: formData,
       });
       const data = await res.json();
-      setLiveStressResult(data);
+      if (reqId === currentRequestIdRef.current) {
+        setLiveStressResult(data);
+      }
     } catch (e) {
-      console.error('Live stress failed', e);
+      if (reqId === currentRequestIdRef.current) {
+        console.error('Live stress failed', e);
+      }
     } finally {
-      setStressLoading(false);
+      if (reqId === currentRequestIdRef.current) {
+        setStressLoading(false);
+      }
     }
   };
 
+  // Debounced trigger: prevents flooding backend on fast slider drag
   useEffect(() => {
     if (activeTab === 'stress_studio') {
-      runLiveStress(stressType, stressIntensity, sampleKey);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        runLiveStress(stressType, stressIntensity, sampleKey);
+      }, 120);
     }
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
   }, [activeTab, stressType, stressIntensity, sampleKey, selectedModel]);
+
+  const getConfidenceColor = (conf) => {
+    if (conf >= 70) return '#10b981'; // Green (calibrated)
+    if (conf >= 45) return '#f59e0b'; // Amber (caution)
+    return '#ef4444'; // Red (collapse)
+  };
 
   const getVerdictBadge = (verdict) => {
     if (!verdict) return null;
@@ -132,6 +160,7 @@ export default function App() {
       </span>
     );
   };
+
 
 
   return (
@@ -680,6 +709,11 @@ export default function App() {
                   <span className="viewer-sub">Real-time model response under live sensor noise</span>
                 </div>
                 <div className="viewer-stats">
+                  {stressLoading && (
+                    <span className="badge badge-warning" style={{ fontSize: '11px', padding: '2px 8px' }}>
+                      <RefreshCw size={10} className="spin" /> Computing...
+                    </span>
+                  )}
                   <span>Latency: <strong>{liveStressResult?.latency_ms ?? '--'} ms</strong></span>
                   <span>Target Class: <strong>Grade {liveStressResult?.predicted_grade ?? '--'}</strong></span>
                 </div>
@@ -707,12 +741,23 @@ export default function App() {
 
                   <div className="telemetry-item">
                     <span className="t-label">Prediction Confidence:</span>
-                    <span className="t-val">{liveStressResult?.confidence ?? '--'}%</span>
+                    <span
+                      className="t-val"
+                      style={{
+                        color: liveStressResult?.confidence != null ? getConfidenceColor(liveStressResult.confidence) : 'inherit',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {liveStressResult?.confidence ?? '--'}%
+                    </span>
                   </div>
                   <div className="progress-bar">
                     <div
                       className="progress-fill"
-                      style={{ transform: `scaleX(${(liveStressResult?.confidence || 0) / 100})` }}
+                      style={{
+                        transform: `scaleX(${(liveStressResult?.confidence || 0) / 100})`,
+                        backgroundColor: getConfidenceColor(liveStressResult?.confidence || 0),
+                      }}
                     />
                   </div>
 
