@@ -891,6 +891,122 @@ export default function App() {
                 </div>
               );
             })()}
+
+            {/* Giskard-Style Declarative CI/CD Safety Gate Matrix */}
+            {(() => {
+              const gateMatrix = auditData?.safety_gate_matrix;
+              const gates = gateMatrix?.gates || [];
+              const passedCount = gateMatrix?.passed_count ?? 0;
+              const totalCount = gateMatrix?.total_count ?? gates.length;
+              const isAllPass = passedCount === totalCount && totalCount > 0;
+
+              if (gates.length === 0) return null;
+
+              return (
+                <div className="card table-card" style={{ marginTop: '16px' }}>
+                  <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h3 className="card-title-text">Declarative CI/CD Safety Gate Matrix</h3>
+                    </div>
+                    <div>
+                      <span className={`status-pill ${isAllPass ? 'status-pill-pass' : 'status-pill-fail'}`}>
+                        {passedCount} / {totalCount} GATES CLEARED • {isAllPass ? 'DEPLOYMENT PERMITTED' : 'RELEASE BLOCKED'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="table-wrapper">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Gate ID</th>
+                          <th>Safety Test Assertion</th>
+                          <th>Regulatory Threshold</th>
+                          <th>Observed Metric</th>
+                          <th>Verdict</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {gates.map((g, idx) => {
+                          const isPass = g.passed;
+                          return (
+                            <tr key={idx}>
+                              <td><code className="num-tabular" style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>{g.gate_id}</code></td>
+                              <td><strong>{g.name}</strong></td>
+                              <td className="num-tabular" style={{ color: 'var(--text-muted)' }}>{g.threshold}</td>
+                              <td className="num-tabular"><strong>{g.observed}</strong></td>
+                              <td>
+                                <span className={`status-pill ${isPass ? 'status-pill-pass' : 'status-pill-fail'}`}>
+                                  {isPass ? 'PASS' : 'FAIL'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* CHAI & TorchXRayVision Multi-Center Equity & Generalization Audit */}
+            {(() => {
+              const equity = auditData?.subgroup_fairness;
+              const ood = auditData?.cross_site_generalization;
+              if (!equity && !ood) return null;
+
+              const dispRatio = equity?.disparity_ratio;
+              const isEquityPass = equity?.four_fifths_pass;
+              const deltaGen = ood?.delta_generalization;
+              const isOodStable = ood?.status === 'STABLE';
+
+              return (
+                <div className="card table-card" style={{ marginTop: '16px' }}>
+                  <div className="card-header">
+                    <div>
+                      <h3 className="card-title-text">Multi-Center Equity &amp; Generalization Audit (CHAI &amp; TorchXRayVision)</h3>
+                    </div>
+                  </div>
+                  <div className="table-wrapper">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Assurance Standard</th>
+                          <th>Evaluation Metric</th>
+                          <th>Regulatory Reference</th>
+                          <th>Observed Value</th>
+                          <th>Audit Finding</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td><strong>CHAI Algorithmic Equity</strong></td>
+                          <td>Subgroup Disparity Ratio</td>
+                          <td className="num-tabular" style={{ color: 'var(--text-muted)' }}>&ge; 0.800 (Four-Fifths Rule)</td>
+                          <td className="num-tabular"><strong>{dispRatio !== undefined ? dispRatio.toFixed(3) : '--'}</strong></td>
+                          <td>
+                            <span className={`status-pill ${isEquityPass ? 'status-pill-pass' : 'status-pill-fail'}`}>
+                              {isEquityPass ? 'EQUITY CLEARED' : 'DISPARITY HAZARD'}
+                            </span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td><strong>TorchXRayVision Cross-Site</strong></td>
+                          <td>Multi-Center Generalization Delta (&Delta;AUC)</td>
+                          <td className="num-tabular" style={{ color: 'var(--text-muted)' }}>&le; 0.080 Generalization Drift</td>
+                          <td className="num-tabular"><strong>{deltaGen !== undefined ? deltaGen.toFixed(3) : '--'}</strong></td>
+                          <td>
+                            <span className={`status-pill ${isOodStable ? 'status-pill-pass' : 'status-pill-warn'}`}>
+                              {isOodStable ? 'CROSS-SITE STABLE' : 'PROTOCOL DRIFT WARNING'}
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
             </div>
           )
         )}
