@@ -79,6 +79,22 @@ MODEL_REGISTRY = {
         "modality": "chest_xray",
         "target_deployment": "Portable Bedside ICU X-Ray Cart",
     },
+    "nlp_bioclinicalbert": {
+        "id": "nlp_bioclinicalbert",
+        "name": "Clinical NLP - Bio_ClinicalBERT (ICU Admission Risk)",
+        "path": "assets/models/nlp_bioclinicalbert_risk.onnx",
+        "architecture": "Bio_ClinicalBERT MIMIC-IV Transformer (110M Params)",
+        "modality": "clinical_nlp",
+        "target_deployment": "Hospital Intensive Care Unit (ICU) Workstation",
+    },
+    "nlp_pubmedbert": {
+        "id": "nlp_pubmedbert",
+        "name": "Clinical NLP - PubMedBERT (Clinical Decision Support)",
+        "path": "assets/models/nlp_pubmedbert_diagnostic.onnx",
+        "architecture": "PubMedBERT Biomedical Transformer (110M Params)",
+        "modality": "clinical_nlp",
+        "target_deployment": "Emergency Department (ED) Triage Console",
+    },
 }
 
 DATASET_REGISTRY = {
@@ -104,6 +120,28 @@ DATASET_REGISTRY = {
         "compatible_models": ["cxr_chexnet", "cxr_mobilenet_edge"],
         "default_output_dir": "outputs/audit_run_chexnet",
     },
+    "clinical_notes_mimic_60": {
+        "id": "clinical_notes_mimic_60",
+        "name": "MIMIC-IV De-identified Clinical Notes Cohort",
+        "modality": "clinical_nlp",
+        "path": "data/sample_clinical_notes_metadata.csv",
+        "sample_count": 60,
+        "sites": ["Beth Israel Deaconess Boston", "Memorial Regional"],
+        "description": "60 physician notes and discharge summaries across ICU triage and ambulatory outpatient clinics",
+        "compatible_models": ["nlp_bioclinicalbert", "nlp_pubmedbert"],
+        "default_output_dir": "outputs/audit_run_nlp_clinical_bert",
+    },
+    "mednli_clinical_60": {
+        "id": "mednli_clinical_60",
+        "name": "MedNLI Clinical Decision Support Cohort",
+        "modality": "clinical_nlp",
+        "path": "data/sample_mednli_metadata.csv",
+        "sample_count": 60,
+        "sites": ["Stanford Health Care", "Mayo Clinic Rochester"],
+        "description": "60 clinical diagnostic premise-hypothesis assessment pairs",
+        "compatible_models": ["nlp_bioclinicalbert", "nlp_pubmedbert"],
+        "default_output_dir": "outputs/audit_run_nlp_pubmedbert",
+    },
 }
 
 LATEST_AUDIT_CACHE: Dict[str, Any] = {}
@@ -119,6 +157,8 @@ def resolve_audit_paths(model_id: str, dataset_id: Optional[str] = None):
     if not dataset_id or dataset_id not in DATASET_REGISTRY:
         if model_meta.get("modality") == "chest_xray":
             dataset_id = "chest_xray_60"
+        elif model_meta.get("modality") == "clinical_nlp":
+            dataset_id = "clinical_notes_mimic_60"
         else:
             dataset_id = "retinal_dr_60"
 
@@ -323,6 +363,14 @@ def get_modalities():
                 "reference_benchmarks": ["MIMIC-IV-ED", "PhysioNet 2019 Challenge"],
                 "default_model": "benchmark:tabular-xgboost",
             },
+            {
+                "id": "clinical_nlp",
+                "name": "Clinical NLP Suite (EHR Clinical Notes & Discharge Summaries)",
+                "clinical_targets": ["ICU Admission Risk", "Acute Decompensation", "Diagnostic Entailment (MedNLI)", "NegEx Negation Inversion"],
+                "perturbations": ["OCR Typographical Noise", "Medical Abbreviation Density", "Hasty Note Truncation", "Demographic Pronoun Swapping"],
+                "reference_benchmarks": ["MIMIC-IV-Note", "MedNLI", "i2b2/n2c2", "PubMedQA"],
+                "default_model": "assets/models/nlp_bioclinicalbert_risk.onnx",
+            },
         ]
     }
 
@@ -369,6 +417,21 @@ CXR_GROUND_TRUTH = {
     "scan_0006": 1,
 }
 
+CLINICAL_NLP_GROUND_TRUTH = {
+    "sample_clinical_pass": 0,
+    "sample_corneal_glare": 0,
+    "sample_low_illumination": 1,
+    "sample_motion_blur": 1,
+    "sample_silent_failure_candidate": 1,
+    "sample_severe_npdr": 1,
+    "note_0001": 1,
+    "note_0002": 0,
+    "note_0003": 1,
+    "note_0004": 0,
+    "note_0005": 1,
+    "note_0006": 0,
+}
+
 
 @app.post("/api/audit/run")
 def run_audit(model_id: str = Query("dr_lcnet_edge")):
@@ -380,8 +443,13 @@ def run_audit(model_id: str = Query("dr_lcnet_edge")):
     if not samples:
         raise HTTPException(status_code=500, detail=f"No test samples found for modality {modality}.")
 
-    gt_labels = CXR_GROUND_TRUTH if modality == "chest_xray" else RETINAL_GROUND_TRUTH
-    audit_res = run_full_model_audit(evaluator, samples, ground_truth_labels=gt_labels)
+    if modality == "chest_xray":
+        gt_labels = CXR_GROUND_TRUTH
+    elif modality == "clinical_nlp":
+        gt_labels = CLINICAL_NLP_GROUND_TRUTH
+    else:
+        gt_labels = RETINAL_GROUND_TRUTH
+    audit_res = run_full_model_audit(evaluator, samples, ground_truth_labels=gt_labels, modality=modality)
 
     # Generate deployment certificate
     pdf_filename = f"TrustCheck_Certificate_{audit_res['audit_id']}.pdf"
@@ -431,6 +499,9 @@ async def test_single_stress(
     model_id: str = Form("dr_lcnet_edge"),
 ):
     """Interactive stress endpoint for live slider testing."""
+    canonical_id = MODEL_ALIASES.get(model_id, model_id)
+    entry = MODEL_REGISTRY.get(canonical_id, {})
+    modality = entry.get("modality", "retinal_fundus")
     evaluator = get_evaluator(model_id)
 
     if file:
@@ -438,12 +509,19 @@ async def test_single_stress(
         nparr = np.frombuffer(content, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     elif sample_key:
-        samples = load_test_samples()
+        samples = load_test_samples(modality=modality)
         if sample_key not in samples:
-            raise HTTPException(status_code=404, detail=f"Sample {sample_key} not found.")
-        img = samples[sample_key]
+            samples = load_test_samples(modality="retinal_fundus")
+        if sample_key in samples:
+            img = samples[sample_key]
+        elif samples:
+            img = list(samples.values())[0]
+        else:
+            img = np.full((384, 384, 3), 128, dtype=np.uint8)
     else:
-        samples = load_test_samples()
+        samples = load_test_samples(modality=modality)
+        if not samples:
+            samples = load_test_samples(modality="retinal_fundus")
         if not samples:
             img = np.full((384, 384, 3), 128, dtype=np.uint8)
         else:

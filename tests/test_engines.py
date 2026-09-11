@@ -222,6 +222,31 @@ def test_pluggable_modality_suites(dummy_scan):
     noisy = tab_suite.inject_sensor_noise(features, severity=2)
     assert noisy.shape == features.shape
 
+    # Test ClinicalTextSuite (Clinical NLP)
+    nlp_suite = get_modality_suite("clinical_nlp")
+    assert nlp_suite.name == "clinical_nlp"
+    raw_note = "Patient complains of shortness of breath and chest pain. Denies headache. He is stable."
+    
+    # 1. OCR Typos
+    corrupted_typo = nlp_suite.apply_ocr_typos(raw_note, severity=3)
+    assert isinstance(corrupted_typo, str) and len(corrupted_typo) > 0
+    
+    # 2. Medical Abbreviation Swapping
+    abbr_note = nlp_suite.apply_abbreviations(raw_note, severity=4)
+    assert "SOB" in abbr_note or "CP" in abbr_note or "pt" in abbr_note
+    
+    # 3. Note Truncation
+    trunc_note = nlp_suite.apply_note_truncation(raw_note, severity=5)
+    assert len(trunc_note.split()) < len(raw_note.split())
+    
+    # 4. NegEx Negation Inversion
+    neg_inverted = nlp_suite.inject_negation_inversion(raw_note)
+    assert "reports headache" in neg_inverted.lower()
+    
+    # 5. Demographic Pronoun Swapping
+    demo_swapped = nlp_suite.swap_demographic_markers(raw_note)
+    assert "She is stable" in demo_swapped
+
 
 def test_non_compensatory_hard_safety_vetoes():
     # Scenario 1: High composite TrustScore (85.0) overridden by > 2.0x demographic disparity

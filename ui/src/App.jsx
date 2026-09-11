@@ -98,6 +98,56 @@ export default function App() {
   }, []);
 
   const isCXR = (mId) => mId === 'cxr_chexnet' || mId === 'cxr_mobilenet_edge';
+  const isNLP = (mId) => mId === 'nlp_bioclinicalbert' || mId === 'nlp_pubmedbert';
+
+  const getSpectrumRows = () => {
+    if (auditData?.stress_spectrum && auditData.stress_spectrum.length > 0) {
+      return auditData.stress_spectrum;
+    }
+    const tests = auditData?.stress_tests || {};
+    const blurStab = tests.blur_ladder?.slice(-1)[0]?.retained_stability ?? 28;
+    const illumStab = tests.illumination_ladder?.slice(-1)[0]?.retained_stability ?? 12;
+    const glareStab = tests.glare_ladder?.slice(-1)[0]?.retained_stability ?? 14.5;
+    const resStab = tests.resolution_ladder?.slice(-1)[0]?.retained_stability ?? 36.2;
+
+    const getStatus = (s) => (s >= 70 ? 'pass' : s >= 48 ? 'warn' : 'fail');
+    const getVerdict = (s, fallbackFail) => (s >= 70 ? 'PASS • Robust' : s >= 48 ? 'WARN • Sub-threshold' : fallbackFail);
+
+    return [
+      {
+        vector_name: isCXR(selectedModel) ? 'Thoracic Motion Blur' : isNLP(selectedModel) ? 'OCR Typographical Noise' : 'Defocus / Motion Blur',
+        min_param: isCXR(selectedModel) ? 'Kernel = 0 px' : isNLP(selectedModel) ? '0% Typo Noise' : 'σ = 0.0',
+        max_param: isCXR(selectedModel) ? 'Kernel = 21 px (Tremor)' : isNLP(selectedModel) ? '42% Char Swaps' : 'σ = 6.0 (Severe movement)',
+        retained_stability: blurStab,
+        status: getStatus(blurStab),
+        verdict: getVerdict(blurStab, 'FAIL • Sub-threshold'),
+      },
+      {
+        vector_name: isCXR(selectedModel) ? 'CR/DR Contrast Attenuation' : isNLP(selectedModel) ? 'Medical Abbreviation Density' : 'Flash / Illumination Drop',
+        min_param: isCXR(selectedModel) ? '100% Dynamic Range' : isNLP(selectedModel) ? 'Standard Clinical Text' : '100% Brightness',
+        max_param: isCXR(selectedModel) ? '-75% Underexposure' : isNLP(selectedModel) ? '80% Physician Shorthand' : '-80% (Undilated pupil)',
+        retained_stability: illumStab,
+        status: getStatus(illumStab),
+        verdict: getVerdict(illumStab, 'FAIL • Severe Sensitivity'),
+      },
+      {
+        vector_name: isCXR(selectedModel) ? 'Quantum Poisson Shot Noise' : isNLP(selectedModel) ? 'Hasty Note Truncation' : 'Corneal Glare Reflection',
+        min_param: isCXR(selectedModel) ? 'High-Dose Photons' : isNLP(selectedModel) ? '100% Complete Narrative' : '0.00',
+        max_param: isCXR(selectedModel) ? 'Low-Dose Scatter Noise' : isNLP(selectedModel) ? '40% Length (Cutoff)' : '0.95 (Corneal Whiteout)',
+        retained_stability: glareStab,
+        status: getStatus(glareStab),
+        verdict: getVerdict(glareStab, 'FAIL • Noise Saturated'),
+      },
+      {
+        vector_name: isCXR(selectedModel) ? 'Matrix Resolution Downsampling' : isNLP(selectedModel) ? 'Negation Assertion Stress' : 'Sensor Resolution Downsampling',
+        min_param: isCXR(selectedModel) ? '384×384 px' : isNLP(selectedModel) ? 'Intact Assertions' : '384×384 px',
+        max_param: isCXR(selectedModel) ? '96×96 px (Mobile cart)' : isNLP(selectedModel) ? 'NegEx Semantic Inversion' : '96×96 px (Extreme drop)',
+        retained_stability: resStab,
+        status: getStatus(resStab),
+        verdict: getVerdict(resStab, 'FAIL • Sub-threshold'),
+      },
+    ];
+  };
 
   const loadCohortData = async (mId, dId) => {
     try {
@@ -121,7 +171,10 @@ export default function App() {
     if (isCXR(newModelId) && selectedDataset !== 'chest_xray_60') {
       newDatasetId = 'chest_xray_60';
       setSelectedDataset('chest_xray_60');
-    } else if (!isCXR(newModelId) && selectedDataset === 'chest_xray_60') {
+    } else if (isNLP(newModelId) && selectedDataset !== 'clinical_notes_mimic_60') {
+      newDatasetId = 'clinical_notes_mimic_60';
+      setSelectedDataset('clinical_notes_mimic_60');
+    } else if (!isCXR(newModelId) && !isNLP(newModelId) && (selectedDataset === 'chest_xray_60' || selectedDataset === 'clinical_notes_mimic_60')) {
       newDatasetId = 'retinal_dr_60';
       setSelectedDataset('retinal_dr_60');
     }
@@ -136,7 +189,11 @@ export default function App() {
       newModelId = 'cxr_chexnet';
       setSelectedModel('cxr_chexnet');
       loadLatestAudit('cxr_chexnet');
-    } else if (newDatasetId === 'retinal_dr_60' && isCXR(selectedModel)) {
+    } else if (newDatasetId === 'clinical_notes_mimic_60' && !isNLP(selectedModel)) {
+      newModelId = 'nlp_bioclinicalbert';
+      setSelectedModel('nlp_bioclinicalbert');
+      loadLatestAudit('nlp_bioclinicalbert');
+    } else if (newDatasetId === 'retinal_dr_60' && (isCXR(selectedModel) || isNLP(selectedModel))) {
       newModelId = 'dr_lcnet_edge';
       setSelectedModel('dr_lcnet_edge');
       loadLatestAudit('dr_lcnet_edge');
@@ -367,7 +424,7 @@ export default function App() {
             <div className="context-label-row">
               <span className="context-label">EVALUATION TARGET</span>
               <span className="context-modality-pill">
-                {selectedModel.startsWith('dr') ? 'DR Fundus' : 'CXR Chest'}
+                {selectedModel.startsWith('dr') ? 'DR Fundus' : selectedModel.startsWith('nlp') ? 'Clinical NLP' : 'CXR Chest'}
               </span>
             </div>
             <div className="sidebar-select-wrap">
@@ -388,7 +445,7 @@ export default function App() {
             <div className="context-label-row">
               <span className="context-label">STRESS COHORT</span>
               <span className="context-count-pill">
-                {datasets.find(d => d.id === selectedDataset)?.sample_count || 60} scans
+                {datasets.find(d => d.id === selectedDataset)?.sample_count || 60} {datasets.find(d => d.id === selectedDataset)?.modality === 'clinical_nlp' ? 'notes' : 'scans'}
               </span>
             </div>
             <div className="sidebar-select-wrap">
@@ -399,7 +456,9 @@ export default function App() {
                 className="sidebar-select"
               >
                 {datasets.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.sample_count} {d.modality === 'clinical_nlp' ? 'notes' : 'scans'})
+                  </option>
                 ))}
               </select>
             </div>
@@ -641,17 +700,24 @@ export default function App() {
                 : eceVal < 15.0 ? { label: 'MODERATE RISK', cls: 'bay-tag-warning' }
                 : { label: 'CRITICAL HAZARD', cls: 'bay-tag-danger' };
 
-              const blurVal = auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? null;
-              const blurBadge = blurVal === null ? { label: '--', cls: 'bay-tag-muted' }
-                : blurVal >= 70 ? { label: 'RESILIENT', cls: 'bay-tag-success' }
-                : blurVal >= 40 ? { label: 'DEGRADED', cls: 'bay-tag-warning' }
+              const specRows = getSpectrumRows();
+              const v1 = specRows[0];
+              const v1Title = v1?.vector_name || (isCXR(selectedModel) ? 'Thoracic Motion Blur' : isNLP(selectedModel) ? 'OCR Typographical Noise' : 'Defocus / Motion Tolerance');
+              const v1Val = v1?.retained_stability ?? auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? null;
+              const v1Badge = v1Val === null ? { label: '--', cls: 'bay-tag-muted' }
+                : v1Val >= 70 ? { label: 'RESILIENT', cls: 'bay-tag-success' }
+                : v1Val >= 40 ? { label: 'DEGRADED', cls: 'bay-tag-warning' }
                 : { label: 'SUB-THRESHOLD', cls: 'bay-tag-danger' };
+              const v1Desc = v1?.max_param ? `Max stress tested: ${v1.max_param}` : 'Max stress tested: σ = 6.0 (Severe motion)';
 
-              const illumVal = auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? null;
-              const illumBadge = illumVal === null ? { label: '--', cls: 'bay-tag-muted' }
-                : illumVal >= 70 ? { label: 'STABLE', cls: 'bay-tag-success' }
-                : illumVal >= 40 ? { label: 'MODERATE SENSITIVITY', cls: 'bay-tag-warning' }
+              const v2 = specRows[1];
+              const v2Title = v2?.vector_name || (isCXR(selectedModel) ? 'CR/DR Contrast Attenuation' : isNLP(selectedModel) ? 'Medical Abbreviation Density' : 'Illumination Sensitivity');
+              const v2Val = v2?.retained_stability ?? auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? null;
+              const v2Badge = v2Val === null ? { label: '--', cls: 'bay-tag-muted' }
+                : v2Val >= 70 ? { label: 'STABLE', cls: 'bay-tag-success' }
+                : v2Val >= 40 ? { label: 'MODERATE SENSITIVITY', cls: 'bay-tag-warning' }
                 : { label: 'SEVERE SENSITIVITY', cls: 'bay-tag-danger' };
+              const v2Desc = v2?.max_param ? `Max stress tested: ${v2.max_param}` : 'Max stress tested: -80% flash attenuation';
 
               const missCount = auditData?.discrepancies?.length || 0;
 
@@ -671,26 +737,26 @@ export default function App() {
 
                   <div className="telemetry-bay">
                     <div className="bay-header">
-                      <span className="bay-title">Defocus / Motion Tolerance</span>
-                      <span className={`bay-tag ${blurBadge.cls}`}>{blurBadge.label}</span>
+                      <span className="bay-title">{v1Title}</span>
+                      <span className={`bay-tag ${v1Badge.cls}`}>{v1Badge.label}</span>
                     </div>
                     <div className="bay-value-row">
-                      <span className="bay-val num-tabular">{blurVal !== null ? blurVal : '--'}%</span>
+                      <span className="bay-val num-tabular">{v1Val !== null ? v1Val : '--'}%</span>
                       <span className="bay-unit">retained</span>
                     </div>
-                    <span className="bay-desc">Max stress tested: σ = 6.0 (Severe motion)</span>
+                    <span className="bay-desc">{v1Desc}</span>
                   </div>
 
                   <div className="telemetry-bay">
                     <div className="bay-header">
-                      <span className="bay-title">Illumination Sensitivity</span>
-                      <span className={`bay-tag ${illumBadge.cls}`}>{illumBadge.label}</span>
+                      <span className="bay-title">{v2Title}</span>
+                      <span className={`bay-tag ${v2Badge.cls}`}>{v2Badge.label}</span>
                     </div>
                     <div className="bay-value-row">
-                      <span className="bay-val num-tabular">{illumVal !== null ? illumVal : '--'}%</span>
+                      <span className="bay-val num-tabular">{v2Val !== null ? v2Val : '--'}%</span>
                       <span className="bay-unit">retained</span>
                     </div>
-                    <span className="bay-desc">Max stress tested: -80% flash attenuation</span>
+                    <span className="bay-desc">{v2Desc}</span>
                   </div>
 
                   <div
@@ -725,46 +791,15 @@ export default function App() {
 
             {/* Stress Test Breakdown Table */}
             {(() => {
-              const isCXR = selectedModel.startsWith('cxr');
-              const stressVectors = [
-                {
-                  vector: isCXR ? 'Motion Blur / Patient Tachypnea' : 'Defocus / Patient Motion Blur',
-                  min: 'σ = 0.0',
-                  max: 'σ = 6.0 (Severe motion)',
-                  val: auditData?.stress_tests?.blur_ladder?.slice(-1)[0]?.retained_stability ?? 28,
-                  ciMargin: 3.8,
-                },
-                {
-                  vector: isCXR ? 'Tube Underpenetration' : 'Flash / Low Illumination Falloff',
-                  min: '100% Exposure',
-                  max: '-80% (Low Dose / Pupil Drop)',
-                  val: auditData?.stress_tests?.illumination_ladder?.slice(-1)[0]?.retained_stability ?? 12,
-                  ciMargin: 4.2,
-                },
-                {
-                  vector: isCXR ? 'Rib Artifact / Density Scatter' : 'Corneal Glare Reflection',
-                  min: '0.00',
-                  max: '0.95 (Aperture Saturation)',
-                  val: auditData?.stress_tests?.glare_ladder?.slice(-1)[0]?.retained_stability ?? 14.5,
-                  ciMargin: 3.5,
-                },
-                {
-                  vector: isCXR ? 'Matrix Decimation (Aliasing)' : 'Sensor Downsampling',
-                  min: isCXR ? '224×224 px' : '384×384 px',
-                  max: isCXR ? '56×56 px' : '96×96 px',
-                  val: auditData?.stress_tests?.resolution_ladder?.slice(-1)[0]?.retained_stability ?? 36.2,
-                  ciMargin: 2.9,
-                },
-              ];
-
+              const spectrum = getSpectrumRows();
               return (
                 <div className="card table-card">
                   <div className="card-header">
                     <div>
                       <h3 className="card-title-text">Stress Degradation Spectrum</h3>
-                      <div className="card-subtitle-text">Empirical hardware perturbation tolerance mapped across 4 clinical vectors</div>
+                      <div className="card-subtitle-text">Empirical hardware perturbation tolerance mapped across {spectrum.length} clinical vectors</div>
                     </div>
-                    <span className="tag">4 Hardware Stress Vectors Tested</span>
+                    <span className="tag">{spectrum.length} Stress Vectors Tested</span>
                   </div>
                   <div className="table-wrapper">
                     <table className="data-table">
@@ -778,21 +813,22 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {stressVectors.map((v, idx) => {
-                          const val = v.val;
-                          const ciLower = Math.max(0, val - v.ciMargin).toFixed(1);
-                          const ciUpper = Math.min(100, val + v.ciMargin).toFixed(1);
+                        {spectrum.map((v, idx) => {
+                          const val = Number(v.retained_stability ?? 0);
+                          const ciMargin = 3.5;
+                          const ciLower = Math.max(0, val - ciMargin).toFixed(1);
+                          const ciUpper = Math.min(100, val + ciMargin).toFixed(1);
                           const isPass = val >= 70;
                           const isWarn = val >= 40 && val < 70;
                           const pillCls = isPass ? 'status-pill-pass' : isWarn ? 'status-pill-warn' : 'status-pill-fail';
-                          const pillText = isPass ? 'PASS • Clinically Resilient' : isWarn ? 'WARN • Marginal Attenuation' : 'FAIL • Sub-threshold Degradation';
+                          const pillText = v.verdict || (isPass ? 'PASS • Clinically Resilient' : isWarn ? 'WARN • Marginal Attenuation' : 'FAIL • Sub-threshold Degradation');
                           const trackCls = isPass ? 'pass' : isWarn ? 'warn' : 'fail';
 
                           return (
                             <tr key={idx}>
-                              <td><strong>{v.vector}</strong></td>
-                              <td className="num-tabular">{v.min}</td>
-                              <td className="num-tabular">{v.max}</td>
+                              <td><strong>{v.vector_name || v.vector}</strong></td>
+                              <td className="num-tabular">{v.min_param || v.min}</td>
+                              <td className="num-tabular">{v.max_param || v.max}</td>
                               <td>
                                 <div className="table-retention-cell">
                                   <div className="retention-val-group">

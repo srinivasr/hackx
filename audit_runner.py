@@ -68,23 +68,28 @@ def run_evaluation_suite(
     meta_df = pd.read_csv(metadata_path)
     print(f"Loaded validation cohort: {len(meta_df)} patients across {meta_df['site_id'].nunique()} clinical site(s).")
 
-    images = []
+    samples = []
     labels = []
     patient_ids = []
     
+    is_text_cohort = "clinical_note" in meta_df.columns or "text" in meta_df.columns or modality in ["clinical_nlp", "clinical_text", "nlp", "text"]
+
     for _, row in meta_df.iterrows():
-        img_p = row["image_path"]
-        if not os.path.isabs(img_p):
-            # Look relative to current working directory or metadata directory
-            if not os.path.exists(img_p):
-                alt_p = os.path.join(os.path.dirname(metadata_path), "..", img_p)
-                if os.path.exists(alt_p):
-                    img_p = alt_p
-        img = cv2.imread(img_p)
-        if img is None:
-            # Generate simulated scan if file not found
-            img = np.zeros((224, 224, 3), dtype=np.uint8)
-        images.append(img)
+        if is_text_cohort:
+            text_val = str(row.get("clinical_note", row.get("text", "")))
+            samples.append(text_val)
+        else:
+            img_p = row.get("image_path", "")
+            if not os.path.isabs(img_p):
+                if not os.path.exists(img_p):
+                    alt_p = os.path.join(os.path.dirname(metadata_path), "..", img_p)
+                    if os.path.exists(alt_p):
+                        img_p = alt_p
+            img = cv2.imread(img_p)
+            if img is None:
+                img = np.zeros((224, 224, 3), dtype=np.uint8)
+            samples.append(img)
+
         labels.append(int(row["ground_truth"]))
         patient_ids.append(str(row["patient_id"]))
 
@@ -93,20 +98,20 @@ def run_evaluation_suite(
     # 2. Target Model Ingestion
     wrapper = ClinicalModelWrapper(model_target)
     print("Running baseline inference & feature extraction...")
-    clean_confs, clean_preds, embeddings = wrapper.infer_batch(images, patient_ids)
+    clean_confs, clean_preds, embeddings = wrapper.infer_batch(samples, patient_ids)
 
-    # Callable closure for image batch inference
-    def predict_batch_fn(batch_imgs):
-        c, p, _ = wrapper.infer_batch(batch_imgs)
+    # Callable closure for batch inference
+    def predict_batch_fn(batch_samples):
+        c, p, _ = wrapper.infer_batch(batch_samples)
         return c, p
 
     # 3. STEP 1: ENGINE A - Physics & Hardware Shift (Robustness)
-    print(f"Executing Step 1: Engine A (Physics corruptions for {modality})...")
+    print(f"Executing Step 1: Engine A (Corruptions for {modality})...")
     rob_engine = RobustnessEngine(
         intensity_tiers=cfg.get("engine_a_robustness", {}).get("intensity_tiers"),
         modality=modality,
     )
-    robustness_results = rob_engine.evaluate_cohort(images, labels, predict_batch_fn)
+    robustness_results = rob_engine.evaluate_cohort(samples, labels, predict_batch_fn)
 
     # 4. STEP 2: ENGINE B - Subgroup Bias & Covariate Shift Auditor
     print(f"Executing Step 2: Engine B (Subgroup fairness & shift, profile={wrapper.tier_profile})...")
@@ -169,7 +174,7 @@ def run_evaluation_suite(
         trust_score=trust_score,
         max_subgroup_disparity=fairness_and_shift["max_disparity"],
         critical_silent_failures_count=cal_results["critical_silent_failures_count"],
-        total_samples=len(images),
+        total_samples=len(samples),
         contrast_decay_failure=contrast_decay_fail,
     )
 
@@ -211,6 +216,7 @@ def run_evaluation_suite(
             "worst_group_benchmarks": worst_group,
         },
         "trust_score": trust_score,
+        "composite_trust_score": trust_score,
         "verdict": verdict,
         "clinical_contraindications": contraindications,
     }
@@ -252,7 +258,7 @@ def main():
     parser.add_argument("--metadata", type=str, default="data/sample_metadata.csv", help="Cohort metadata CSV path")
     parser.add_argument("--output-dir", type=str, default="output/audit_run_01", help="Directory for telemetry JSON and PDF dossier")
     parser.add_argument("--config", type=str, default="config/audit_thresholds.yaml", help="Audit thresholds configuration YAML")
-    parser.add_argument("--modality", type=str, default="chest_xray", choices=["chest_xray", "retinal_fundus", "tabular_ehr"], help="Clinical Modality Perturbation Suite")
+    parser.add_argument("--modality", type=str, default="chest_xray", choices=["chest_xray", "retinal_fundus", "tabular_ehr", "clinical_nlp", "clinical_text"], help="Clinical Modality Perturbation Suite")
 
     args = parser.parse_args()
     try:
