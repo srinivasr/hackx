@@ -418,7 +418,10 @@ class DermatologySuite:
         cv2.circle(mask, center, radius, 1.0, -1)
         mask = cv2.GaussianBlur(mask, (31, 31), 11)
         glare = np.ones_like(out) * 255.0
-        out = out * (1.0 - mask[:, :, None] * intensity) + glare * (mask[:, :, None] * intensity)
+        if out.ndim == 3:
+            out = out * (1.0 - mask[:, :, None] * intensity) + glare * (mask[:, :, None] * intensity)
+        else:
+            out = out * (1.0 - mask * intensity) + glare * (mask * intensity)
         return np.clip(out, 0, 255).astype(np.uint8)
 
     @staticmethod
@@ -432,7 +435,10 @@ class DermatologySuite:
         max_dist = np.sqrt((w/2)**2 + (h/2)**2)
         falloff = 1.0 - (dist / max_dist) * (1.0 - factor)
         falloff = np.clip(falloff, factor, 1.0)
-        out = img.astype(np.float32) * falloff[:, :, None]
+        if img.ndim == 3:
+            out = img.astype(np.float32) * falloff[:, :, None]
+        else:
+            out = img.astype(np.float32) * falloff
         return np.clip(out, 0, 255).astype(np.uint8)
 
     @staticmethod
@@ -513,11 +519,15 @@ class HistopathologySuite:
             5: (1.50, 0.65, 1.35), # Severe over-staining
         }
         b_mul, g_mul, r_mul = stain_shifts.get(severity, (1.22, 0.85, 1.18))
-        out = img.astype(np.float32)
-        out[:, :, 0] *= b_mul
-        out[:, :, 1] *= g_mul
-        out[:, :, 2] *= r_mul
-        return np.clip(out, 0, 255).astype(np.uint8)
+        if img.ndim == 3 and img.shape[2] == 3:
+            out = img.astype(np.float32)
+            out[:, :, 0] *= b_mul
+            out[:, :, 1] *= g_mul
+            out[:, :, 2] *= r_mul
+            return np.clip(out, 0, 255).astype(np.uint8)
+        else:
+            avg_mult = float(r_mul * 0.5 + b_mul * 0.5)
+            return np.clip(img.astype(np.float32) * avg_mult, 0, 255).astype(np.uint8)
 
     @staticmethod
     def apply_wsi_defocus(img: np.ndarray, severity: int) -> np.ndarray:

@@ -247,6 +247,56 @@ def test_pluggable_modality_suites(dummy_scan):
     demo_swapped = nlp_suite.swap_demographic_markers(raw_note)
     assert "She is stable" in demo_swapped
 
+    # Test DermatologySuite (Dermoscopy)
+    derm_suite = get_modality_suite("dermatology_dermoscopy")
+    assert derm_suite.name == "dermatology_dermoscopy"
+    glare = derm_suite.apply_specular_glare(dummy_scan, severity=3)
+    assert glare.shape == dummy_scan.shape
+    derm_shortcuts = derm_suite.get_shortcuts()
+    assert "measurement_ruler" in derm_shortcuts
+    ruler = derm_shortcuts["measurement_ruler"](dummy_scan)
+    assert ruler.shape == dummy_scan.shape
+    marker = derm_shortcuts["surgical_skin_marker"](dummy_scan)
+    assert marker.shape == dummy_scan.shape
+
+    # Test HistopathologySuite (Digital Pathology)
+    path_suite = get_modality_suite("digital_pathology")
+    assert path_suite.name == "digital_pathology"
+    stain_drift = path_suite.apply_he_stain_variability(dummy_scan, severity=3)
+    assert stain_drift.shape == dummy_scan.shape
+    compression = path_suite.apply_microtome_compression(dummy_scan, severity=3)
+    assert compression.shape == dummy_scan.shape
+    path_shortcuts = path_suite.get_shortcuts()
+    assert "pathologist_grease_pen" in path_shortcuts
+    grease_pen = path_shortcuts["pathologist_grease_pen"](dummy_scan)
+    assert grease_pen.shape == dummy_scan.shape
+
+
+def test_declarative_safety_gate_matrix_and_chai_equity(dummy_scan):
+    from engine.auditor import run_full_model_audit, CandidateModelEvaluator
+    evaluator = CandidateModelEvaluator("assets/models/chest_xray/cxr_chexnet_densenet121.onnx", "CheXNet")
+    samples = {"scan_01": dummy_scan, "scan_02": dummy_scan}
+    ground_truth = {"scan_01": 1, "scan_02": 0}
+    audit = run_full_model_audit(evaluator, samples, ground_truth_labels=ground_truth, modality="chest_xray")
+    
+    # Verify Safety Gate Matrix structure
+    matrix = audit["safety_gate_matrix"]
+    assert matrix["total_count"] == 5
+    assert len(matrix["gates"]) == 5
+    gate_ids = [g["gate_id"] for g in matrix["gates"]]
+    assert gate_ids == ["GATE-ROB-01", "GATE-CAL-02", "GATE-SAF-03", "GATE-EQU-04", "GATE-OOD-05"]
+    
+    # Verify CHAI Equity
+    equity = audit["subgroup_fairness"]
+    assert "disparity_ratio" in equity
+    assert "four_fifths_pass" in equity
+    assert isinstance(equity["four_fifths_pass"], bool)
+    
+    # Verify Cross-Site Generalization
+    ood = audit["cross_site_generalization"]
+    assert "delta_generalization" in ood
+    assert "status" in ood
+
 
 def test_non_compensatory_hard_safety_vetoes():
     # Scenario 1: High composite TrustScore (85.0) overridden by > 2.0x demographic disparity
