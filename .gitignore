@@ -1,7 +1,70 @@
+# ── Python ──────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+*.cover
+
+# ── Virtual Environments ───────────────────────────────
+.venv/
+venv/
+env/
 .direnv/
-outputs/*.pdf
-output/
+
+# ── Node / Vite ────────────────────────────────────────
+ui/node_modules/
 ui/dist/
+ui/.vite/
+node_modules/
+.npm
+*.tsbuildinfo
+
+# ── IDE & Editors ──────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ── OS Metadata ────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.lnk
+
+# ── Project Outputs & Generated Artifacts ──────────────
+outputs/
+output/
+*.pdf
+
+# ── Model Weights (large binaries — track via Git LFS) ─
+assets/models/*.onnx
+assets/models/*.onnx.data
+assets/models/*.pt
+assets/models/*.pth
+*.bin
+
+# ── Nix ────────────────────────────────────────────────
+result
+result-*
+
+# ── Misc ───────────────────────────────────────────────
+*.log
+*.bak
+*.tmp
+.env
+.env.*
+!.envrc
