@@ -474,11 +474,11 @@ def get_latest_audit(model_id: Optional[str] = None):
     canonical_id = MODEL_ALIASES.get(model_id, model_id) if model_id else None
     if canonical_id:
         if canonical_id not in LATEST_AUDIT_CACHE:
-            return run_audit(canonical_id)
+            return None
         return LATEST_AUDIT_CACHE[canonical_id]
     if "latest" in LATEST_AUDIT_CACHE:
         return LATEST_AUDIT_CACHE["latest"]
-    return run_audit("dr_lcnet_edge")
+    return None
 
 
 @app.get("/api/audit/certificate/{filename}")
@@ -579,8 +579,7 @@ def get_cohort_summary(
             data["dataset_metadata"] = dataset_meta
             return data
 
-    # If telemetry doesn't exist for this specific model/dataset pair, generate it on-demand!
-    return run_cohort_audit(model_id=model_id, dataset_id=dataset_meta["id"])
+    return None
 
 
 @app.post("/api/audit/run-cohort")

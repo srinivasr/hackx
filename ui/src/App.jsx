@@ -49,6 +49,8 @@ export default function App() {
   const [selectedDataset, setSelectedDataset] = useState('retinal_dr_60');
   const [auditData, setAuditData] = useState(null);
   const [cohortData, setCohortData] = useState(null);
+  const [completedAudits, setCompletedAudits] = useState({});
+  const [completedCohortAudits, setCompletedCohortAudits] = useState({});
   const [loading, setLoading] = useState(false);
   const [cohortLoading, setCohortLoading] = useState(false);
 
@@ -73,7 +75,7 @@ export default function App() {
   const [liveStressResult, setLiveStressResult] = useState(null);
   const [stressLoading, setStressLoading] = useState(false);
 
-  // Fetch registered models, datasets, & initial audit data
+  // Fetch registered models & datasets (audits remain un-run until triggered)
   useEffect(() => {
     fetch('/api/models')
       .then((res) => (res.ok ? res.json() : null))
@@ -92,26 +94,28 @@ export default function App() {
         }
       })
       .catch((err) => console.warn('Datasets endpoint not reachable yet:', err.message));
-
-    loadCohortData(selectedModel, selectedDataset);
-    loadLatestAudit(selectedModel);
   }, []);
 
   const isCXR = (mId) => mId === 'cxr_chexnet' || mId === 'cxr_mobilenet_edge';
   const isNLP = (mId) => mId === 'nlp_bioclinicalbert' || mId === 'nlp_pubmedbert';
 
   const getSpectrumRows = () => {
+    if (!auditData) return [];
     if (auditData?.stress_spectrum && auditData.stress_spectrum.length > 0) {
       return auditData.stress_spectrum;
     }
     const tests = auditData?.stress_tests || {};
-    const blurStab = tests.blur_ladder?.slice(-1)[0]?.retained_stability ?? 28;
-    const illumStab = tests.illumination_ladder?.slice(-1)[0]?.retained_stability ?? 12;
-    const glareStab = tests.glare_ladder?.slice(-1)[0]?.retained_stability ?? 14.5;
-    const resStab = tests.resolution_ladder?.slice(-1)[0]?.retained_stability ?? 36.2;
+    const blurStab = tests.blur_ladder?.slice(-1)[0]?.retained_stability;
+    const illumStab = tests.illumination_ladder?.slice(-1)[0]?.retained_stability;
+    const glareStab = tests.glare_ladder?.slice(-1)[0]?.retained_stability;
+    const resStab = tests.resolution_ladder?.slice(-1)[0]?.retained_stability;
 
-    const getStatus = (s) => (s >= 70 ? 'pass' : s >= 48 ? 'warn' : 'fail');
-    const getVerdict = (s, fallbackFail) => (s >= 70 ? 'PASS • Robust' : s >= 48 ? 'WARN • Sub-threshold' : fallbackFail);
+    if (blurStab === undefined && illumStab === undefined && glareStab === undefined && resStab === undefined) {
+      return [];
+    }
+
+    const getStatus = (s) => (s >= 70 ? 'pass' : s >= 40 ? 'warn' : 'fail');
+    const getVerdict = (s) => (s >= 70 ? 'PASS • Robust' : s >= 40 ? 'WARN • Sub-threshold' : 'FAIL • Sub-threshold');
 
     return [
       {
@@ -119,61 +123,40 @@ export default function App() {
         min_param: isCXR(selectedModel) ? 'Kernel = 0 px' : isNLP(selectedModel) ? '0% Typo Noise' : 'σ = 0.0',
         max_param: isCXR(selectedModel) ? 'Kernel = 21 px (Tremor)' : isNLP(selectedModel) ? '42% Char Swaps' : 'σ = 6.0 (Severe movement)',
         retained_stability: blurStab,
-        status: getStatus(blurStab),
-        verdict: getVerdict(blurStab, 'FAIL • Sub-threshold'),
+        status: blurStab !== undefined ? getStatus(blurStab) : 'warn',
+        verdict: blurStab !== undefined ? getVerdict(blurStab) : 'Pending evaluation',
       },
       {
         vector_name: isCXR(selectedModel) ? 'CR/DR Contrast Attenuation' : isNLP(selectedModel) ? 'Medical Abbreviation Density' : 'Flash / Illumination Drop',
         min_param: isCXR(selectedModel) ? '100% Dynamic Range' : isNLP(selectedModel) ? 'Standard Clinical Text' : '100% Brightness',
         max_param: isCXR(selectedModel) ? '-75% Underexposure' : isNLP(selectedModel) ? '80% Physician Shorthand' : '-80% (Undilated pupil)',
         retained_stability: illumStab,
-        status: getStatus(illumStab),
-        verdict: getVerdict(illumStab, 'FAIL • Severe Sensitivity'),
+        status: illumStab !== undefined ? getStatus(illumStab) : 'warn',
+        verdict: illumStab !== undefined ? getVerdict(illumStab) : 'Pending evaluation',
       },
       {
         vector_name: isCXR(selectedModel) ? 'Quantum Poisson Shot Noise' : isNLP(selectedModel) ? 'Hasty Note Truncation' : 'Corneal Glare Reflection',
         min_param: isCXR(selectedModel) ? 'High-Dose Photons' : isNLP(selectedModel) ? '100% Complete Narrative' : '0.00',
         max_param: isCXR(selectedModel) ? 'Low-Dose Scatter Noise' : isNLP(selectedModel) ? '40% Length (Cutoff)' : '0.95 (Corneal Whiteout)',
         retained_stability: glareStab,
-        status: getStatus(glareStab),
-        verdict: getVerdict(glareStab, 'FAIL • Noise Saturated'),
+        status: glareStab !== undefined ? getStatus(glareStab) : 'warn',
+        verdict: glareStab !== undefined ? getVerdict(glareStab) : 'Pending evaluation',
       },
       {
         vector_name: isCXR(selectedModel) ? 'Matrix Resolution Downsampling' : isNLP(selectedModel) ? 'Negation Assertion Stress' : 'Sensor Resolution Downsampling',
         min_param: isCXR(selectedModel) ? '384×384 px' : isNLP(selectedModel) ? 'Intact Assertions' : '384×384 px',
         max_param: isCXR(selectedModel) ? '96×96 px (Mobile cart)' : isNLP(selectedModel) ? 'NegEx Semantic Inversion' : '96×96 px (Extreme drop)',
         retained_stability: resStab,
-        status: getStatus(resStab),
-        verdict: getVerdict(resStab, 'FAIL • Sub-threshold'),
+        status: resStab !== undefined ? getStatus(resStab) : 'warn',
+        verdict: resStab !== undefined ? getVerdict(resStab) : 'Pending evaluation',
       },
     ];
   };
 
-  const loadCohortData = async (mId, dId) => {
-    setCohortLoading(true);
-    try {
-      const res = await fetch(`/api/audit/cohort-summary?model_id=${mId}&dataset_id=${dId}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.audit_run_id) {
-          setCohortData(data);
-        } else {
-          setCohortData(null);
-        }
-      } else {
-        setCohortData(null);
-      }
-    } catch (e) {
-      console.warn('Cohort telemetry unavailable:', e.message);
-      setCohortData(null);
-    } finally {
-      setCohortLoading(false);
-    }
-  };
-
   const handleModelChange = (newModelId) => {
     setSelectedModel(newModelId);
-    loadLatestAudit(newModelId);
+    setAuditData(completedAudits[newModelId] || null);
+
     // Intelligent auto-pairing with recommended clinical dataset
     let newDatasetId = selectedDataset;
     if (isCXR(newModelId) && selectedDataset !== 'chest_xray_60') {
@@ -186,7 +169,7 @@ export default function App() {
       newDatasetId = 'retinal_dr_60';
       setSelectedDataset('retinal_dr_60');
     }
-    loadCohortData(newModelId, newDatasetId);
+    setCohortData(completedCohortAudits[`${newModelId}_${newDatasetId}`] || null);
   };
 
   const handleDatasetChange = (newDatasetId) => {
@@ -196,34 +179,17 @@ export default function App() {
     if (newDatasetId === 'chest_xray_60' && !isCXR(selectedModel)) {
       newModelId = 'cxr_chexnet';
       setSelectedModel('cxr_chexnet');
-      loadLatestAudit('cxr_chexnet');
+      setAuditData(completedAudits['cxr_chexnet'] || null);
     } else if (newDatasetId === 'clinical_notes_mimic_60' && !isNLP(selectedModel)) {
       newModelId = 'nlp_bioclinicalbert';
       setSelectedModel('nlp_bioclinicalbert');
-      loadLatestAudit('nlp_bioclinicalbert');
+      setAuditData(completedAudits['nlp_bioclinicalbert'] || null);
     } else if (newDatasetId === 'retinal_dr_60' && (isCXR(selectedModel) || isNLP(selectedModel))) {
       newModelId = 'dr_lcnet_edge';
       setSelectedModel('dr_lcnet_edge');
-      loadLatestAudit('dr_lcnet_edge');
+      setAuditData(completedAudits['dr_lcnet_edge'] || null);
     }
-    loadCohortData(newModelId, newDatasetId);
-  };
-
-  const loadLatestAudit = async (modelId) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/audit/latest?model_id=${modelId}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.audit_id) {
-          setAuditData(data);
-        }
-      }
-    } catch (e) {
-      console.warn('Audit fetch unavailable:', e.message);
-    } finally {
-      setLoading(false);
-    }
+    setCohortData(completedCohortAudits[`${newModelId}_${newDatasetId}`] || null);
   };
 
   const handleRunAudit = async () => {
@@ -233,6 +199,7 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setAuditData(data);
+        setCompletedAudits((prev) => ({ ...prev, [selectedModel]: data }));
         setActiveTab('overview');
       }
     } catch (e) {
@@ -249,6 +216,7 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setCohortData(data);
+        setCompletedCohortAudits((prev) => ({ ...prev, [`${selectedModel}_${selectedDataset}`]: data }));
       }
     } catch (e) {
       console.warn('Cohort audit run failed:', e.message);
@@ -613,12 +581,49 @@ export default function App() {
         <main className="content-view">
         {/* TAB 1: OVERVIEW & CERTIFICATE */}
         {activeTab === 'overview' && (
-          <div className="overview-container">
-            {/* Top Dossier Hero Deck */}
-            <div className="dossier-hero">
-              <div className="dossier-main">
-                <div>
-                  <h2 className="dossier-headline">{auditData?.verdict_title || 'Running Initial Audit...'}</h2>
+          !auditData ? (
+            <div className="empty-panel-container">
+              <div className={`empty-state-card ${loading ? 'auditing' : ''}`}>
+                {loading ? (
+                  <>
+                    <div className="empty-state-icon-box">
+                      <RefreshCw size={28} className="spin" />
+                    </div>
+                    <h3 className="empty-state-title">Auditing Model Integrity...</h3>
+                    <p className="empty-state-desc">
+                      Executing optical perturbation tests, calculating Expected Calibration Error, and verifying lesion concordance for <strong>{selectedModel}</strong>...
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="empty-state-icon-box">
+                      <Activity size={28} />
+                    </div>
+                    <h3 className="empty-state-title">No Audit Executed for {selectedModel}</h3>
+                    <p className="empty-state-desc">
+                      Execute an automated stress audit to compute composite readiness score, calibration error curve, and hardware perturbation spectrum.
+                    </p>
+                    <div className="empty-state-actions">
+                      <button
+                        onClick={handleRunAudit}
+                        disabled={loading}
+                        className="btn btn-primary"
+                      >
+                        <RefreshCw size={14} className={loading ? 'spin' : ''} />
+                        <span>Run Single Audit</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="overview-container">
+              {/* Top Dossier Hero Deck */}
+              <div className="dossier-hero">
+                <div className="dossier-main">
+                  <div>
+                    <h2 className="dossier-headline">{auditData?.verdict_title || 'Running Initial Audit...'}</h2>
                   <p className="dossier-summary">{auditData?.guardrail_policy}</p>
                   <div className="dossier-model-hash">
                     <span className="num-tabular">Target: {selectedModel}</span>
@@ -861,14 +866,52 @@ export default function App() {
                 </div>
               );
             })()}
-          </div>
+            </div>
+          )
         )}
 
         {/* TAB 2: COHORT STRESS SUITE (SOTA) */}
         {activeTab === 'cohort' && (
-          <div className="cohort-container">
-            {/* Top Cohort Dossier Hero Deck */}
-            <div className="dossier-hero">
+          !cohortData ? (
+            <div className="empty-panel-container">
+              <div className={`empty-state-card ${cohortLoading ? 'auditing' : ''}`}>
+                {cohortLoading ? (
+                  <>
+                    <div className="empty-state-icon-box">
+                      <RefreshCw size={28} className="spin" />
+                    </div>
+                    <h3 className="empty-state-title">Executing Cohort Audit Battery...</h3>
+                    <p className="empty-state-desc">
+                      Evaluating multicenter perturbation suites, worst-group fairness disparities, and G-AUDIT shortcut hazards on <strong>{selectedDataset}</strong>...
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="empty-state-icon-box">
+                      <Layers size={28} />
+                    </div>
+                    <h3 className="empty-state-title">No Cohort Audit Battery Executed</h3>
+                    <p className="empty-state-desc">
+                      Execute the multicenter cohort battery for <strong>{selectedModel}</strong> against <strong>{selectedDataset}</strong> to evaluate clinical corruption robustness (cMCE), worst-group disparities, and autonomous triage deferral policies.
+                    </p>
+                    <div className="empty-state-actions">
+                      <button
+                        onClick={handleRunCohortAudit}
+                        disabled={cohortLoading}
+                        className="btn btn-primary"
+                      >
+                        <RefreshCw size={14} className={cohortLoading ? 'spin' : ''} />
+                        <span>Run Cohort Audit Battery</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="cohort-container">
+              {/* Top Cohort Dossier Hero Deck */}
+              <div className="dossier-hero">
               <div className="dossier-main">
                 <div>
                   <h2 className="dossier-headline">Multicenter Cohort Stress Battery</h2>
@@ -1249,7 +1292,8 @@ export default function App() {
                 </div>
               </div>
             </div>
-          </div>
+            </div>
+          )
         )}
 
         {/* TAB 3: OPTICAL STRESS STUDIO */}
@@ -1335,7 +1379,7 @@ export default function App() {
                   {liveStressResult?.image_base64 ? (
                     <img src={liveStressResult.image_base64} alt="Perturbed Fundus" className="fundus-render" />
                   ) : (
-                    <div className="image-placeholder">Running Stress Inference...</div>
+                    <div className="image-placeholder">{stressLoading ? 'Running Stress Inference...' : 'No Perturbation Applied'}</div>
                   )}
                   <span className="img-tag">Active Perturbation: {stressType}</span>
                 </div>
@@ -1343,47 +1387,67 @@ export default function App() {
                 <div className="telemetry-panel">
                   <h4>Model Decision Telemetry</h4>
 
-                  <div className="telemetry-item">
-                    <span className="t-label">Diagnostic Output:</span>
-                    <span className="t-val">Grade {liveStressResult?.predicted_grade} ({
-                      ['Normal', 'Mild NPDR', 'Moderate NPDR', 'Severe NPDR', 'Proliferative DR'][liveStressResult?.predicted_grade ?? 0]
-                    })</span>
-                  </div>
-
-                  <div className="telemetry-item">
-                    <span className="t-label">Prediction Confidence:</span>
-                    <span className="t-val">{liveStressResult?.confidence ?? '--'}%</span>
-                  </div>
-                  <div className="progress-bar">
-                    <div
-                      className="progress-fill"
-                      style={{ transform: `scaleX(${(liveStressResult?.confidence || 0) / 100})` }}
-                    />
-                  </div>
-
-                  <h5 style={{ marginTop: '16px', marginBottom: '8px' }}>Detected Physical Lesions:</h5>
-                  <div className="biomarker-chips">
-                    <div className="chip">
-                      <span>Microaneurysms:</span>
-                      <strong>{liveStressResult?.biomarkers?.microaneurysms ?? 0}</strong>
-                    </div>
-                    <div className="chip">
-                      <span>Exudate Area:</span>
-                      <strong>{liveStressResult?.biomarkers?.exudate_area_pct ?? 0}%</strong>
-                    </div>
-                    <div className="chip">
-                      <span>Hemorrhages:</span>
-                      <strong>{liveStressResult?.biomarkers?.hemorrhage_quadrants ?? 0} quads</strong>
-                    </div>
-                  </div>
-
-                  {liveStressResult?.predicted_grade === 0 && (liveStressResult?.biomarkers?.microaneurysms > 0 || liveStressResult?.biomarkers?.exudate_area_pct > 0) && (
-                    <div className="alert-danger-box">
-                      <AlertTriangle size={16} />
-                      <div>
-                        <strong>DISCREPANCY DETECTED:</strong> Model outputs Grade 0 (Normal), but active lesions are present. Silent false negative triggered!
+                  {!liveStressResult ? (
+                    stressLoading ? (
+                      <div className="empty-telemetry-box">
+                        <RefreshCw size={24} className="spin text-primary" />
+                        <p className="empty-telemetry-title">Applying Stress &amp; Inferring...</p>
+                        <p className="empty-telemetry-desc">Evaluating candidate model inference and lesion detection under active stress.</p>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="empty-telemetry-box">
+                        <Eye size={28} className="empty-icon-subtle" />
+                        <p className="empty-telemetry-title">No Live Stress Test Executed</p>
+                        <p className="empty-telemetry-desc">
+                          Adjust perturbation parameters on the left and click <strong>Apply Stress &amp; Run Telemetry</strong> to evaluate live inference and lesion detection.
+                        </p>
+                      </div>
+                    )
+                  ) : (
+                    <>
+                      <div className="telemetry-item">
+                        <span className="t-label">Diagnostic Output:</span>
+                        <span className="t-val">Grade {liveStressResult.predicted_grade} ({
+                          ['Normal', 'Mild NPDR', 'Moderate NPDR', 'Severe NPDR', 'Proliferative DR'][liveStressResult.predicted_grade ?? 0]
+                        })</span>
+                      </div>
+
+                      <div className="telemetry-item">
+                        <span className="t-label">Prediction Confidence:</span>
+                        <span className="t-val">{liveStressResult.confidence ?? '--'}%</span>
+                      </div>
+                      <div className="progress-bar">
+                        <div
+                          className="progress-fill"
+                          style={{ transform: `scaleX(${(liveStressResult.confidence || 0) / 100})` }}
+                        />
+                      </div>
+
+                      <h5 style={{ marginTop: '16px', marginBottom: '8px' }}>Detected Physical Lesions:</h5>
+                      <div className="biomarker-chips">
+                        <div className="chip">
+                          <span>Microaneurysms:</span>
+                          <strong>{liveStressResult.biomarkers?.microaneurysms ?? 0}</strong>
+                        </div>
+                        <div className="chip">
+                          <span>Exudate Area:</span>
+                          <strong>{liveStressResult.biomarkers?.exudate_area_pct ?? 0}%</strong>
+                        </div>
+                        <div className="chip">
+                          <span>Hemorrhages:</span>
+                          <strong>{liveStressResult.biomarkers?.hemorrhage_quadrants ?? 0} quads</strong>
+                        </div>
+                      </div>
+
+                      {liveStressResult.predicted_grade === 0 && (liveStressResult.biomarkers?.microaneurysms > 0 || liveStressResult.biomarkers?.exudate_area_pct > 0) && (
+                        <div className="alert-danger-box">
+                          <AlertTriangle size={16} />
+                          <div>
+                            <strong>DISCREPANCY DETECTED:</strong> Model outputs Grade 0 (Normal), but active lesions are present. Silent false negative triggered!
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -1391,183 +1455,267 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 3: SILENT FAILURES INSPECTOR */}
+        {/* TAB 4: SILENT FAILURES INSPECTOR */}
         {activeTab === 'failures' && (
-          <div className="failures-container">
-            <div className="card">
-              <div className="card-header">
-                <div>
-                  <h3 className="card-title-text">Silent Clinical Failures &amp; Discrepancies</h3>
-                </div>
-                <span className="badge badge-danger">
-                  {auditData?.discrepancies?.length || 0} Violations Found
-                </span>
-              </div>
-
-              <div className="failure-list">
-                {(auditData?.discrepancies || []).map((disc, idx) => (
-                  <div key={idx} className="failure-card">
-                    <div className="failure-meta">
-                      <span className="failure-id">Sample ID: {disc.sample_id}</span>
-                      <span className="failure-violation">{disc.violation_type}</span>
+          !auditData ? (
+            <div className="empty-panel-container">
+              <div className={`empty-state-card ${loading ? 'auditing' : ''}`}>
+                {loading ? (
+                  <>
+                    <div className="empty-state-icon-box warning">
+                      <RefreshCw size={28} className="spin" />
                     </div>
-
-                    <div className="failure-comparison">
-                      <div className="comparison-box model-side">
-                        <span className="box-title">Candidate Model Classification</span>
-                        <span className="box-grade">Grade {disc.predicted_grade}</span>
-                      </div>
-
-                      <div className="comparison-divider">vs</div>
-
-                      <div className="comparison-box ground-side">
-                        <span className="box-title">Physical Anatomical Ground-Truth</span>
-                        <span className="box-grade" style={{ color: 'var(--danger)' }}>Grade {disc.biomarker_grade}</span>
-                        <span className="box-sub">{disc.evidence}</span>
-                      </div>
+                    <h3 className="empty-state-title">Scanning for Silent Clinical Discordance...</h3>
+                    <p className="empty-state-desc">
+                      Cross-referencing candidate model classifications against anatomical biomarkers for <strong>{selectedModel}</strong>...
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="empty-state-icon-box warning">
+                      <AlertTriangle size={28} />
                     </div>
-
-                    <div className="verdict-banner-danger">
-                      <AlertTriangle size={15} />
-                      <span>{disc.verdict}</span>
+                    <h3 className="empty-state-title">No Audit Executed for {selectedModel}</h3>
+                    <p className="empty-state-desc">
+                      Execute an audit check to scan benchmarks for silent false negatives where candidate models output Grade 0 (Normal) despite physical lesions being present.
+                    </p>
+                    <div className="empty-state-actions">
+                      <button
+                        onClick={handleRunAudit}
+                        disabled={loading}
+                        className="btn btn-primary"
+                      >
+                        <RefreshCw size={14} className={loading ? 'spin' : ''} />
+                        <span>Run Single Audit</span>
+                      </button>
                     </div>
-                  </div>
-                ))}
+                  </>
+                )}
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="failures-container">
+              <div className="card">
+                <div className="card-header">
+                  <div>
+                    <h3 className="card-title-text">Silent Clinical Failures &amp; Discrepancies</h3>
+                  </div>
+                  <span className={`badge ${(auditData?.discrepancies?.length || 0) > 0 ? 'badge-danger' : 'badge-success'}`}>
+                    {auditData?.discrepancies?.length || 0} Violations Found
+                  </span>
+                </div>
+
+                {(!auditData?.discrepancies || auditData.discrepancies.length === 0) ? (
+                  <div style={{ padding: '36px 24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    <CheckCircle2 size={32} style={{ color: 'var(--success)', marginBottom: '12px' }} />
+                    <h4 style={{ margin: '0 0 6px', color: 'var(--text-primary)' }}>Zero Silent Failures Detected</h4>
+                    <p style={{ margin: 0, fontSize: '13px' }}>Candidate model classifications matched physical anatomical ground truth across audited benchmarks.</p>
+                  </div>
+                ) : (
+                  <div className="failure-list">
+                    {auditData.discrepancies.map((disc, idx) => (
+                      <div key={idx} className="failure-card">
+                        <div className="failure-meta">
+                          <span className="failure-id">Sample ID: {disc.sample_id}</span>
+                          <span className="failure-violation">{disc.violation_type}</span>
+                        </div>
+
+                        <div className="failure-comparison">
+                          <div className="comparison-box model-side">
+                            <span className="box-title">Candidate Model Classification</span>
+                            <span className="box-grade">Grade {disc.predicted_grade}</span>
+                          </div>
+
+                          <div className="comparison-divider">vs</div>
+
+                          <div className="comparison-box ground-side">
+                            <span className="box-title">Physical Anatomical Ground-Truth</span>
+                            <span className="box-grade" style={{ color: 'var(--danger)' }}>Grade {disc.biomarker_grade}</span>
+                            <span className="box-sub">{disc.evidence}</span>
+                          </div>
+                        </div>
+
+                        <div className="verdict-banner-danger">
+                          <AlertTriangle size={15} />
+                          <span>{disc.verdict}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
         )}
 
-        {/* TAB 4: MODEL ARENA */}
+        {/* TAB 5: MODEL ARENA */}
         {activeTab === 'arena' && (
-          <div className="arena-container">
-            <div className="card">
-              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                <div>
-                  <h3 className="card-title-text">Model Comparison</h3>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    className={`btn ${arenaModality === 'retinal_dr' ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => setArenaModality('retinal_dr')}
-                    style={{ fontSize: '13px', padding: '6px 12px' }}
-                  >
-                    Diabetic Retinopathy (Fundus)
-                  </button>
-                  <button
-                    className={`btn ${arenaModality === 'chest_xray' ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => setArenaModality('chest_xray')}
-                    style={{ fontSize: '13px', padding: '6px 12px' }}
-                  >
-                    Chest Radiography (CXR)
-                  </button>
-                </div>
+          !auditData && Object.keys(completedAudits).length === 0 ? (
+            <div className="empty-panel-container">
+              <div className={`empty-state-card ${loading ? 'auditing' : ''}`}>
+                {loading ? (
+                  <>
+                    <div className="empty-state-icon-box">
+                      <RefreshCw size={28} className="spin" />
+                    </div>
+                    <h3 className="empty-state-title">Auditing Model for Arena Benchmark...</h3>
+                    <p className="empty-state-desc">
+                      Executing evaluation benchmarks to populate comparative discrimination metrics...
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="empty-state-icon-box">
+                      <Cpu size={28} />
+                    </div>
+                    <h3 className="empty-state-title">No Audits Executed for Comparison</h3>
+                    <p className="empty-state-desc">
+                      Comparative benchmark evaluation requires at least one evaluated model audit. Run an audit check to view architecture comparisons and AUROC discrimination curves.
+                    </p>
+                    <div className="empty-state-actions">
+                      <button
+                        onClick={handleRunAudit}
+                        disabled={loading}
+                        className="btn btn-primary"
+                      >
+                        <RefreshCw size={14} className={loading ? 'spin' : ''} />
+                        <span>Run Single Audit</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
-
-              {/* Interactive AUROC Diagnostic Discrimination Deck */}
-              <AurocCurveViewer modality={arenaModality} />
-
-              {arenaModality === 'retinal_dr' ? (
-                <div className="table-wrapper">
-                  <table className="data-table arena-table">
-                    <thead>
-                      <tr>
-                        <th>Evaluation Metric</th>
-                        <th>DR Mobile LCNet (Edge)</th>
-                        <th>DR ResNet Teacher (Server)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td><strong>Architecture Type</strong></td>
-                        <td>PP-LCNet + MSAG Attention</td>
-                        <td>ResNet18 Deep Ensemble</td>
-                      </tr>
-                      <tr>
-                        <td><strong>Model Size / Parameters</strong></td>
-                        <td><span className="status-pass">7.6M Params (12.7 MB)</span></td>
-                        <td><span className="status-fail">11.2M Params (44.6 MB)</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Inference Latency</strong></td>
-                        <td><span className="status-pass">6.8 ms (146 FPS)</span></td>
-                        <td>14.2 ms (70 FPS)</td>
-                      </tr>
-                      <tr>
-                        <td><strong>In-Domain AUC</strong></td>
-                        <td>92.8%</td>
-                        <td><span className="status-pass">95.4%</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Defocus Noise Resilience</strong></td>
-                        <td><span className="status-fail">28.0% Stability Retained</span></td>
-                        <td><span className="status-pass">64.5% Stability Retained</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Expected Calibration Error (ECE)</strong></td>
-                        <td><span className="status-fail">18.4% (Overconfident)</span></td>
-                        <td><span className="status-pass">4.2% (Well-calibrated)</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Final Deployment Verdict</strong></td>
-                        <td><span className="badge badge-warning">CONDITIONAL PASS</span></td>
-                        <td><span className="badge badge-success">APPROVED FOR GPU SERVER</span></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="table-wrapper">
-                  <table className="data-table arena-table">
-                    <thead>
-                      <tr>
-                        <th>Evaluation Metric</th>
-                        <th>CXR MobileNetV2 (Bedside Cart Edge)</th>
-                        <th>CXR CheXNet DenseNet121 (Hospital Grade)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td><strong>Architecture Type</strong></td>
-                        <td>MobileNetV2 Depthwise-Conv</td>
-                        <td>DenseNet-121 Feature Reuse</td>
-                      </tr>
-                      <tr>
-                        <td><strong>Model Size / Parameters</strong></td>
-                        <td><span className="status-pass">3.5M Params (8.4 MB)</span></td>
-                        <td><span className="status-fail">7.0M Params (27.7 MB)</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Inference Latency</strong></td>
-                        <td><span className="status-pass">4.1 ms (240 FPS)</span></td>
-                        <td>12.8 ms (78 FPS)</td>
-                      </tr>
-                      <tr>
-                        <td><strong>In-Domain AUC</strong></td>
-                        <td>74.2%</td>
-                        <td><span className="status-pass">86.8%</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>CR vs DR Contrast Sensitivity</strong></td>
-                        <td><span className="status-fail">42.1% Stability Retained</span></td>
-                        <td><span className="status-pass">78.4% Stability Retained</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Expected Calibration Error (ECE)</strong></td>
-                        <td><span className="status-fail">10.8% (Borderline Overconfident)</span></td>
-                        <td><span className="status-pass">3.8% (Calibrated Posterior)</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Final Deployment Verdict</strong></td>
-                        <td><span className="badge badge-danger">RESTRICTED / CAUTION</span></td>
-                        <td><span className="badge badge-success">APPROVED FOR WORKSTATION</span></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              )}
             </div>
-          </div>
+          ) : (
+            <div className="arena-container">
+              <div className="card">
+                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <h3 className="card-title-text">Model Comparison</h3>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      className={`btn ${arenaModality === 'retinal_dr' ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setArenaModality('retinal_dr')}
+                      style={{ fontSize: '13px', padding: '6px 12px' }}
+                    >
+                      Diabetic Retinopathy (Fundus)
+                    </button>
+                    <button
+                      className={`btn ${arenaModality === 'chest_xray' ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setArenaModality('chest_xray')}
+                      style={{ fontSize: '13px', padding: '6px 12px' }}
+                    >
+                      Chest Radiography (CXR)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Interactive AUROC Diagnostic Discrimination Deck */}
+                <AurocCurveViewer modality={arenaModality} />
+
+                {arenaModality === 'retinal_dr' ? (
+                  <div className="table-wrapper">
+                    <table className="data-table arena-table">
+                      <thead>
+                        <tr>
+                          <th>Evaluation Metric</th>
+                          <th>DR Mobile LCNet (Edge)</th>
+                          <th>DR ResNet Teacher (Server)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td><strong>Architecture Type</strong></td>
+                          <td>PP-LCNet + MSAG Attention</td>
+                          <td>ResNet18 Deep Ensemble</td>
+                        </tr>
+                        <tr>
+                          <td><strong>Model Size / Parameters</strong></td>
+                          <td><span className="status-pass">7.6M Params (12.7 MB)</span></td>
+                          <td><span className="status-fail">11.2M Params (44.6 MB)</span></td>
+                        </tr>
+                        <tr>
+                          <td><strong>Inference Latency</strong></td>
+                          <td><span className="status-pass">6.8 ms (146 FPS)</span></td>
+                          <td>14.2 ms (70 FPS)</td>
+                        </tr>
+                        <tr>
+                          <td><strong>In-Domain AUC</strong></td>
+                          <td>92.8%</td>
+                          <td><span className="status-pass">95.4%</span></td>
+                        </tr>
+                        <tr>
+                          <td><strong>Defocus Noise Resilience</strong></td>
+                          <td><span className="status-fail">28.0% Stability Retained</span></td>
+                          <td><span className="status-pass">64.5% Stability Retained</span></td>
+                        </tr>
+                        <tr>
+                          <td><strong>Expected Calibration Error (ECE)</strong></td>
+                          <td><span className="status-fail">18.4% (Overconfident)</span></td>
+                          <td><span className="status-pass">4.2% (Well-calibrated)</span></td>
+                        </tr>
+                        <tr>
+                          <td><strong>Final Deployment Verdict</strong></td>
+                          <td><span className="badge badge-warning">CONDITIONAL PASS</span></td>
+                          <td><span className="badge badge-success">APPROVED FOR GPU SERVER</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="table-wrapper">
+                    <table className="data-table arena-table">
+                      <thead>
+                        <tr>
+                          <th>Evaluation Metric</th>
+                          <th>CXR MobileNetV2 (Bedside Cart Edge)</th>
+                          <th>CXR CheXNet DenseNet121 (Hospital Grade)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td><strong>Architecture Type</strong></td>
+                          <td>MobileNetV2 Depthwise-Conv</td>
+                          <td>DenseNet-121 Feature Reuse</td>
+                        </tr>
+                        <tr>
+                          <td><strong>Model Size / Parameters</strong></td>
+                          <td><span className="status-pass">3.5M Params (8.4 MB)</span></td>
+                          <td><span className="status-fail">7.0M Params (27.7 MB)</span></td>
+                        </tr>
+                        <tr>
+                          <td><strong>Inference Latency</strong></td>
+                          <td><span className="status-pass">4.1 ms (240 FPS)</span></td>
+                          <td>12.8 ms (78 FPS)</td>
+                        </tr>
+                        <tr>
+                          <td><strong>In-Domain AUC</strong></td>
+                          <td>74.2%</td>
+                          <td><span className="status-pass">86.8%</span></td>
+                        </tr>
+                        <tr>
+                          <td><strong>CR vs DR Contrast Sensitivity</strong></td>
+                          <td><span className="status-fail">42.1% Stability Retained</span></td>
+                          <td><span className="status-pass">78.4% Stability Retained</span></td>
+                        </tr>
+                        <tr>
+                          <td><strong>Expected Calibration Error (ECE)</strong></td>
+                          <td><span className="status-fail">10.8% (Borderline Overconfident)</span></td>
+                          <td><span className="status-pass">3.8% (Calibrated Posterior)</span></td>
+                        </tr>
+                        <tr>
+                          <td><strong>Final Deployment Verdict</strong></td>
+                          <td><span className="badge badge-danger">RESTRICTED / CAUTION</span></td>
+                          <td><span className="badge badge-success">APPROVED FOR WORKSTATION</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
         )}
       </main>
       </div>
