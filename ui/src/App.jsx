@@ -21,6 +21,7 @@ import {
   Moon,
 } from 'lucide-react';
 import './App.css';
+import AurocCurveViewer from './AurocCurveViewer';
 
 export default function App() {
   const [theme, setTheme] = useState(() => {
@@ -1238,6 +1239,9 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              {/* Interactive AUROC Diagnostic Discrimination Deck */}
+              <AurocCurveViewer modality={arenaModality} />
 
               {arenaModality === 'retinal_dr' ? (
                 <div className="table-wrapper">
