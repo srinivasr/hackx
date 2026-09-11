@@ -444,7 +444,6 @@ export default function App() {
                 <div>
                   <div className="dossier-eyebrow-row">
                     <span className="dossier-kicker">PRE-MARKET EVALUATION</span>
-                    <span className="dossier-reg-tag">FDA 21 CFR 820 • CDSCO SaMD CLASS C</span>
                   </div>
                   <h2 className="dossier-headline">{auditData?.verdict_title || 'Running Initial Audit...'}</h2>
                   <p className="dossier-summary">{auditData?.guardrail_policy}</p>
@@ -462,7 +461,7 @@ export default function App() {
                       rel="noreferrer"
                       className="btn btn-secondary"
                     >
-                      <Download size={13} /> Download FDA Audit Dossier (PDF)
+                      <Download size={13} /> Download Audit Dossier (PDF)
                     </a>
                   )}
                   <button
@@ -590,7 +589,6 @@ export default function App() {
             <div className="card table-card">
               <div className="card-header">
                 <h3 className="card-title-text">Stress Degradation Spectrum</h3>
-                <span className="tag">4 Perturbation Vectors Tested</span>
               </div>
               <div className="table-wrapper">
                 <table className="data-table">
@@ -688,17 +686,15 @@ export default function App() {
                 <div>
                   <div className="dossier-eyebrow-row">
                     <span className="dossier-kicker">MULTICENTER STRESS BATTERY</span>
-                    <span className="dossier-reg-tag">FDA SaMD / CDSCO PCCP PROTOCOL</span>
                   </div>
                   <h2 className="dossier-headline">Multicenter Cohort Stress-Testing Battery</h2>
                   <p className="dossier-summary">
                     Evaluating 60-patient cohort across hardware corruptions, subgroup underdiagnosis, and shortcut learning.
                   </p>
                   <div className="cohort-meta-strip">
-                    <span className="meta-pill">Target: {cohortData?.target_model || selectedModel}</span>
+                    <span className="meta-pill">Target: {cohortData?.model_metadata?.name || cohortData?.target_model || selectedModel}</span>
                     <span className="meta-pill">Modality: {cohortData?.modality ? cohortData.modality.toUpperCase() : 'CLINICAL'}</span>
                     <span className="meta-pill">Cohort: {cohortData?.dataset_metadata?.name || selectedDataset}</span>
-                    <span className="meta-pill">Protocol: FDA SaMD / CDSCO PCCP</span>
                   </div>
                 </div>
 
@@ -721,7 +717,7 @@ export default function App() {
                     rel="noreferrer"
                     className="btn btn-secondary"
                   >
-                    <Download size={14} /> Download FDA SaMD Dossier (PDF)
+                    <Download size={14} /> Download Audit Dossier (PDF)
                   </a>
                 </div>
               </div>
@@ -835,7 +831,6 @@ export default function App() {
                       <h3 className="card-title-text">G-AUDIT Shortcut Risk Matrix</h3>
                       <p className="card-desc" style={{ marginTop: '2px' }}>Drenkow, Petrick [FDA CDRH], Unberath [JHU] (2025)</p>
                     </div>
-                    <span className="tag">Latent Probe</span>
                   </div>
                   <div className="table-wrapper">
                     <table className="data-table">
@@ -897,7 +892,6 @@ export default function App() {
                       <h3 className="card-title-text">Prevalence Shift &amp; Alert Fatigue Simulator</h3>
                       <p className="card-desc" style={{ marginTop: '2px' }}>Wong et al. (JAMA 2021) Bayes-Adjusted Collapse</p>
                     </div>
-                    <span className="tag">Bayes PPV</span>
                   </div>
                   <div className="table-wrapper">
                     <table className="data-table">
@@ -940,7 +934,6 @@ export default function App() {
                       <h3 className="card-title-text">Decision Curve Analysis (Net Benefit)</h3>
                       <p className="card-desc" style={{ marginTop: '2px' }}>Vickers &amp; Elkin (2006) Clinical Utility Boundaries</p>
                     </div>
-                    <span className="tag">DCA Curve</span>
                   </div>
                   <div className="table-wrapper">
                     <table className="data-table">

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Activity, TrendingUp, AlertTriangle, ShieldCheck, CheckCircle2, Layers } from 'lucide-react';
+import { Activity, TrendingUp, AlertTriangle, CheckCircle2, Layers } from 'lucide-react';
 
 export default function AurocCurveViewer({ modality = 'retinal_dr' }) {
   const [viewMode, setViewMode] = useState('comparison'); // 'comparison' | 'stress_impact'
@@ -242,9 +242,6 @@ export default function AurocCurveViewer({ modality = 'retinal_dr' }) {
         <div>
           <div className="auroc-title-row">
             <h4 className="auroc-title">Clinical Diagnostic Discrimination (AUROC Curve)</h4>
-            <span className="badge badge-success" style={{ fontSize: '10.5px' }}>
-              <ShieldCheck size={12} /> FDA SaMD Standard
-            </span>
           </div>
           <p className="auroc-subtitle">
             Receiver Operating Characteristic evaluating True Positive Rate (Sensitivity) vs False Positive Rate (1 - Specificity).
