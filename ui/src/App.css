@@ -1265,7 +1265,7 @@
 
 .biomarker-chips {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
 }
 
@@ -1299,6 +1299,178 @@
   margin-top: 12px;
   font-size: 11px;
   line-height: 1.4;
+}
+
+/* ── Live Studio Enhancements ───────────────────────────── */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  font-family: var(--font-mono);
+}
+
+.live-badge.updating {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  animation: pulse-dot 1.8s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.85); }
+}
+
+.viewport-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(3px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 10;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.delta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+}
+
+.delta-badge.negative {
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.delta-badge.positive {
+  background: rgba(16, 185, 129, 0.14);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.delta-badge.neutral {
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.prob-dist-container {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 10px 0 14px 0;
+}
+
+.prob-dist-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.prob-dist-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.prob-dist-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.prob-dist-label.active {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.prob-dist-pct {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.prob-dist-pct.active {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.prob-dist-track {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.prob-dist-fill {
+  height: 100%;
+  background: var(--text-muted);
+  border-radius: 3px;
+  transition: width 0.18s ease-out, background 0.18s ease-out;
+}
+
+.prob-dist-fill.active {
+  background: var(--accent);
+}
+
+.custom-file-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg-surface-sunken);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.custom-file-preview strong {
+  color: var(--text-primary);
+  margin-left: 4px;
+}
+
+.btn-icon-xs {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.btn-icon-xs:hover {
+  color: var(--danger);
+  background: var(--danger-subtle);
 }
 
 /* ── Failures View ───────────────────────────────────────── */

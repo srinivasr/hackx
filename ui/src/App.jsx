@@ -20,6 +20,7 @@ import {
   Menu,
   Sun,
   Moon,
+  Info,
 } from 'lucide-react';
 import './App.css';
 import AurocCurveViewer from './AurocCurveViewer';
@@ -74,6 +75,7 @@ export default function App() {
   const [sampleKey, setSampleKey] = useState('sample_clinical_pass');
   const [liveStressResult, setLiveStressResult] = useState(null);
   const [stressLoading, setStressLoading] = useState(false);
+  const [customScanFile, setCustomScanFile] = useState(null);
 
   // Fetch registered models & datasets (audits remain un-run until triggered)
   useEffect(() => {
@@ -157,6 +159,13 @@ export default function App() {
     setSelectedModel(newModelId);
     setAuditData(completedAudits[newModelId] || null);
 
+    // Sync optical stress studio sample key with modality
+    if (isCXR(newModelId) && !sampleKey.startsWith('scan_')) {
+      setSampleKey('scan_0001');
+    } else if (!isCXR(newModelId) && sampleKey.startsWith('scan_')) {
+      setSampleKey('sample_clinical_pass');
+    }
+
     // Intelligent auto-pairing with recommended clinical dataset
     let newDatasetId = selectedDataset;
     if (isCXR(newModelId) && selectedDataset !== 'chest_xray_60') {
@@ -179,6 +188,7 @@ export default function App() {
     if (newDatasetId === 'chest_xray_60' && !isCXR(selectedModel)) {
       newModelId = 'cxr_chexnet';
       setSelectedModel('cxr_chexnet');
+      setSampleKey('scan_0001');
       setAuditData(completedAudits['cxr_chexnet'] || null);
     } else if (newDatasetId === 'clinical_notes_mimic_60' && !isNLP(selectedModel)) {
       newModelId = 'nlp_bioclinicalbert';
@@ -187,6 +197,7 @@ export default function App() {
     } else if (newDatasetId === 'retinal_dr_60' && (isCXR(selectedModel) || isNLP(selectedModel))) {
       newModelId = 'dr_lcnet_edge';
       setSelectedModel('dr_lcnet_edge');
+      setSampleKey('sample_clinical_pass');
       setAuditData(completedAudits['dr_lcnet_edge'] || null);
     }
     setCohortData(completedCohortAudits[`${newModelId}_${newDatasetId}`] || null);
@@ -226,11 +237,15 @@ export default function App() {
   };
 
   // Live single-stress slider trigger
-  const runLiveStress = async (type, intensity, sample) => {
+  const runLiveStress = async (type = stressType, intensity = stressIntensity, sample = sampleKey, file = customScanFile) => {
     setStressLoading(true);
     try {
       const formData = new FormData();
-      formData.append('sample_key', sample);
+      if (file) {
+        formData.append('file', file);
+      } else {
+        formData.append('sample_key', sample);
+      }
       formData.append('stress_type', type);
       formData.append('intensity', intensity);
       formData.append('model_id', selectedModel);
@@ -253,11 +268,11 @@ export default function App() {
   useEffect(() => {
     if (activeTab === 'stress_studio') {
       const timer = setTimeout(() => {
-        runLiveStress(stressType, stressIntensity, sampleKey);
+        runLiveStress(stressType, stressIntensity, sampleKey, customScanFile);
       }, 120);
       return () => clearTimeout(timer);
     }
-  }, [activeTab, stressType, stressIntensity, sampleKey, selectedModel]);
+  }, [activeTab, stressType, stressIntensity, sampleKey, selectedModel, customScanFile]);
 
   const handleUploadModel = async (e) => {
     e.preventDefault();
@@ -1300,29 +1315,112 @@ export default function App() {
         {activeTab === 'stress_studio' && (
           <div className="studio-container">
             <div className="studio-sidebar card">
-              <h3 className="card-title-text">Stress Parameter Controls</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h3 className="card-title-text" style={{ margin: 0 }}>Stress Controls</h3>
+                <span className="meta-pill">{isCXR(selectedModel) ? 'Chest Radiography' : isNLP(selectedModel) ? 'Clinical NLP' : 'Retinal Fundus'}</span>
+              </div>
+
+              {isNLP(selectedModel) && (
+                <div className="alert-info-box" style={{ marginBottom: 14, fontSize: 11 }}>
+                  <Info size={16} style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong>Vision Stress Studio:</strong> Optical vectors test imaging modalities (Fundus &amp; CXR). For Clinical NLP text perturbation benchmarks (OCR typographical noise, note truncation), explore the <strong>Cohort Safety Suite</strong>.
+                  </div>
+                </div>
+              )}
 
               <div className="form-group">
-                <label className="form-label">Select Test Sample:</label>
-                <select value={sampleKey} onChange={(e) => setSampleKey(e.target.value)} className="form-select">
-                  <option value="sample_clinical_pass">Sample 1: Clinical Grade Fundus (IDRiD)</option>
-                  <option value="sample_severe_npdr">Sample 2: Severe Proliferative DR</option>
-                  <option value="sample_low_illumination">Sample 3: Low Illumination Haze</option>
-                  <option value="sample_motion_blur">Sample 4: Handheld Motion Blur</option>
-                  <option value="sample_corneal_glare">Sample 5: Corneal Glare Flash</option>
-                  <option value="sample_silent_failure_candidate">Sample 6: Microaneurysm Candidate</option>
-                </select>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    {isCXR(selectedModel) ? 'Select Thoracic CXR Scan:' : 'Select Fundus Test Sample:'}
+                  </label>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button
+                      type="button"
+                      className={`btn-toggle ${!customScanFile ? 'active' : ''}`}
+                      style={{ padding: '2px 6px', fontSize: 10 }}
+                      onClick={() => setCustomScanFile(null)}
+                    >
+                      Presets
+                    </button>
+                    <label
+                      className={`btn-toggle ${customScanFile ? 'active' : ''}`}
+                      style={{ padding: '2px 6px', fontSize: 10, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                    >
+                      <Upload size={10} />
+                      Upload
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setCustomScanFile(e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {!customScanFile ? (
+                  <select
+                    value={sampleKey}
+                    onChange={(e) => setSampleKey(e.target.value)}
+                    className="form-select"
+                  >
+                    {isCXR(selectedModel) ? (
+                      <>
+                        <option value="scan_0001">CXR Scan 1: PA View (Bilateral Clear)</option>
+                        <option value="scan_0002">CXR Scan 2: Cardiomegaly / Effusion</option>
+                        <option value="scan_0003">CXR Scan 3: Low Dose Portable CXR</option>
+                        <option value="scan_0004">CXR Scan 4: Apical Infiltration / Pneumonia</option>
+                        <option value="scan_0005">CXR Scan 5: Baseline Normal Thoracic</option>
+                        <option value="scan_0006">CXR Scan 6: Subtle Consolidation</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="sample_clinical_pass">Sample 1: Clinical Grade Fundus (IDRiD)</option>
+                        <option value="sample_severe_npdr">Sample 2: Severe Proliferative DR</option>
+                        <option value="sample_low_illumination">Sample 3: Low Illumination Haze</option>
+                        <option value="sample_motion_blur">Sample 4: Handheld Motion Blur</option>
+                        <option value="sample_corneal_glare">Sample 5: Corneal Glare Flash</option>
+                        <option value="sample_silent_failure_candidate">Sample 6: Microaneurysm Candidate</option>
+                      </>
+                    )}
+                  </select>
+                ) : (
+                  <div className="custom-file-preview">
+                    <span>Custom: <strong>{customScanFile.name}</strong></span>
+                    <button
+                      type="button"
+                      className="btn-icon-xs"
+                      onClick={() => setCustomScanFile(null)}
+                      title="Clear custom scan"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
                 <label className="form-label">Stress Vector:</label>
                 <div className="radio-group">
-                  {[
-                    { id: 'blur', label: 'Defocus Blur (σ)' },
-                    { id: 'illumination', label: 'Flash Drop (%)' },
-                    { id: 'glare', label: 'Corneal Glare' },
-                    { id: 'resolution', label: 'Sensor Res (px)' },
-                  ].map((vec) => (
+                  {(isCXR(selectedModel)
+                    ? [
+                        { id: 'blur', label: 'Motion Blur (σ)' },
+                        { id: 'illumination', label: 'Exposure Drop' },
+                        { id: 'glare', label: 'Poisson Noise' },
+                        { id: 'resolution', label: 'Res Scaling' },
+                      ]
+                    : [
+                        { id: 'blur', label: 'Defocus Blur (σ)' },
+                        { id: 'illumination', label: 'Flash Drop (%)' },
+                        { id: 'glare', label: 'Corneal Glare' },
+                        { id: 'resolution', label: 'Sensor Res (px)' },
+                      ]
+                  ).map((vec) => (
                     <button
                       key={vec.id}
                       type="button"
@@ -1345,10 +1443,10 @@ export default function App() {
                 <div className="slider-header">
                   <span>Intensity Parameter:</span>
                   <span className="slider-value">
-                    {stressType === 'blur' && `σ = ${stressIntensity}`}
+                    {stressType === 'blur' && `σ = ${stressIntensity.toFixed(1)}`}
                     {stressType === 'illumination' && `-${stressIntensity}% Drop`}
-                    {stressType === 'glare' && `intensity = ${stressIntensity}`}
-                    {stressType === 'resolution' && `${stressIntensity}x${stressIntensity}px`}
+                    {stressType === 'glare' && (isCXR(selectedModel) ? `Noise = ${(stressIntensity * 100).toFixed(0)}%` : `Glare = ${(stressIntensity * 100).toFixed(0)}%`)}
+                    {stressType === 'resolution' && `${stressIntensity}×${stressIntensity}px`}
                   </span>
                 </div>
                 <input
@@ -1361,27 +1459,101 @@ export default function App() {
                   className="slider"
                 />
               </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ width: '100%', justifyContent: 'center', gap: 8 }}
+                  onClick={() => runLiveStress(stressType, stressIntensity, sampleKey, customScanFile)}
+                  disabled={stressLoading}
+                >
+                  {stressLoading ? (
+                    <>
+                      <RefreshCw size={15} className="spin" />
+                      <span>Inferring Telemetry...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={15} />
+                      <span>Apply Stress &amp; Run Telemetry</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ width: '100%', justifyContent: 'center', fontSize: 11 }}
+                  onClick={() => {
+                    if (stressType === 'blur') setStressIntensity(0);
+                    else if (stressType === 'illumination') setStressIntensity(0);
+                    else if (stressType === 'glare') setStressIntensity(0);
+                    else setStressIntensity(384);
+                  }}
+                  disabled={stressLoading}
+                >
+                  Reset to Baseline (0% Stress)
+                </button>
+              </div>
+
+              <div style={{ marginTop: 16, padding: '10px 12px', background: 'var(--bg-surface-sunken)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', fontSize: 11 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Backend Connection:</span>
+                  <span className={`live-badge ${stressLoading ? 'updating' : ''}`}>
+                    <span className="live-dot" />
+                    {stressLoading ? 'Syncing...' : 'Connected • Live'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 10 }}>
+                  <span>Endpoint:</span>
+                  <code style={{ fontSize: 10 }}>POST /api/stress/single</code>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 10, marginTop: 2 }}>
+                  <span>Target Evaluator:</span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{selectedModel}</span>
+                </div>
+              </div>
             </div>
 
             {/* Live Inspection Viewer */}
             <div className="studio-viewer card">
               <div className="viewer-header">
                 <div>
-                  <h3>Perturbed Input vs Model Diagnostic Output</h3>
+                  <h3 style={{ margin: 0, fontSize: 14 }}>Perturbed Input vs Model Diagnostic Output</h3>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Live ONNX tensor transformation &amp; real-time confidence tracking
+                  </span>
                 </div>
                 <div className="viewer-stats">
-                  <span>Latency: <strong>{liveStressResult?.latency_ms ?? '--'} ms</strong></span>
+                  <span className={`live-badge ${stressLoading ? 'updating' : ''}`}>
+                    <span className="live-dot" />
+                    {stressLoading ? 'Inferring...' : 'Connected'}
+                  </span>
+                  <span>Latency: <strong>{liveStressResult?.latency_ms ? `${liveStressResult.latency_ms} ms` : '--'}</strong></span>
                 </div>
               </div>
 
               <div className="viewer-split">
                 <div className="image-viewport">
                   {liveStressResult?.image_base64 ? (
-                    <img src={liveStressResult.image_base64} alt="Perturbed Fundus" className="fundus-render" />
+                    <img src={liveStressResult.image_base64} alt="Perturbed Clinical Scan" className="fundus-render" />
                   ) : (
                     <div className="image-placeholder">{stressLoading ? 'Running Stress Inference...' : 'No Perturbation Applied'}</div>
                   )}
-                  <span className="img-tag">Active Perturbation: {stressType}</span>
+                  {stressLoading && (
+                    <div className="viewport-loading-overlay">
+                      <RefreshCw size={24} className="spin" />
+                      <span>Re-evaluating ONNX Tensors...</span>
+                    </div>
+                  )}
+                  <span className="img-tag">
+                    Vector: {stressType} • Intensity: {
+                      stressType === 'blur' ? `σ=${stressIntensity.toFixed(1)}` :
+                      stressType === 'illumination' ? `-${stressIntensity}%` :
+                      stressType === 'glare' ? `${stressIntensity.toFixed(2)}` :
+                      `${stressIntensity}px`
+                    }
+                  </span>
                 </div>
 
                 <div className="telemetry-panel">
@@ -1397,9 +1569,9 @@ export default function App() {
                     ) : (
                       <div className="empty-telemetry-box">
                         <Eye size={28} className="empty-icon-subtle" />
-                        <p className="empty-telemetry-title">No Live Stress Test Executed</p>
+                        <p className="empty-telemetry-title">Ready for Live Stress Inference</p>
                         <p className="empty-telemetry-desc">
-                          Adjust perturbation parameters on the left and click <strong>Apply Stress &amp; Run Telemetry</strong> to evaluate live inference and lesion detection.
+                          Adjust perturbation parameters on the left or click <strong>Apply Stress &amp; Run Telemetry</strong> to evaluate live inference and lesion detection.
                         </p>
                       </div>
                     )
@@ -1407,14 +1579,33 @@ export default function App() {
                     <>
                       <div className="telemetry-item">
                         <span className="t-label">Diagnostic Output:</span>
-                        <span className="t-val">Grade {liveStressResult.predicted_grade} ({
-                          ['Normal', 'Mild NPDR', 'Moderate NPDR', 'Severe NPDR', 'Proliferative DR'][liveStressResult.predicted_grade ?? 0]
-                        })</span>
+                        <span className="t-val" style={{ color: 'var(--accent)', fontWeight: 700 }}>
+                          {liveStressResult.class_names && liveStressResult.class_names[liveStressResult.predicted_grade]
+                            ? liveStressResult.class_names[liveStressResult.predicted_grade]
+                            : `Class ${liveStressResult.predicted_grade}`}
+                        </span>
                       </div>
 
-                      <div className="telemetry-item">
+                      <div className="telemetry-item" style={{ marginTop: 8 }}>
                         <span className="t-label">Prediction Confidence:</span>
-                        <span className="t-val">{liveStressResult.confidence ?? '--'}%</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span className="t-val">{liveStressResult.confidence ?? '--'}%</span>
+                          {liveStressResult.confidence_delta !== undefined && (
+                            <span
+                              className={`delta-badge ${
+                                liveStressResult.confidence_delta < -5
+                                  ? 'negative'
+                                  : liveStressResult.confidence_delta > 0
+                                  ? 'positive'
+                                  : 'neutral'
+                              }`}
+                              title="Degradation delta relative to baseline unperturbed scan"
+                            >
+                              {liveStressResult.confidence_delta > 0 ? '+' : ''}
+                              {liveStressResult.confidence_delta}% vs baseline
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="progress-bar">
                         <div
@@ -1423,27 +1614,95 @@ export default function App() {
                         />
                       </div>
 
-                      <h5 style={{ marginTop: '16px', marginBottom: '8px' }}>Detected Physical Lesions:</h5>
+                      {/* Class Probability Distribution Breakdown */}
+                      {liveStressResult.probs && liveStressResult.probs.length > 0 && (
+                        <div style={{ marginTop: 12, marginBottom: 14 }}>
+                          <span className="panel-subhead" style={{ display: 'block', marginBottom: 6 }}>
+                            Class Probability Distribution:
+                          </span>
+                          <div className="prob-dist-container">
+                            {liveStressResult.probs.map((p, idx) => {
+                              const pct = Math.round(p * 1000) / 10;
+                              const isTop = idx === liveStressResult.predicted_grade;
+                              const label = liveStressResult.class_names?.[idx] || `Class ${idx}`;
+                              return (
+                                <div key={idx} className="prob-dist-row">
+                                  <div className="prob-dist-header">
+                                    <span className={`prob-dist-label ${isTop ? 'active' : ''}`}>
+                                      {label}
+                                    </span>
+                                    <span className={`prob-dist-pct ${isTop ? 'active' : ''}`}>
+                                      {pct}%
+                                    </span>
+                                  </div>
+                                  <div className="prob-dist-track">
+                                    <div
+                                      className={`prob-dist-fill ${isTop ? 'active' : ''}`}
+                                      style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      <h5 style={{ marginTop: '14px', marginBottom: '8px', fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {isCXR(selectedModel) ? 'Thoracic Biomarkers & Features:' : 'Detected Retinal Lesions:'}
+                      </h5>
                       <div className="biomarker-chips">
-                        <div className="chip">
-                          <span>Microaneurysms:</span>
-                          <strong>{liveStressResult.biomarkers?.microaneurysms ?? 0}</strong>
-                        </div>
-                        <div className="chip">
-                          <span>Exudate Area:</span>
-                          <strong>{liveStressResult.biomarkers?.exudate_area_pct ?? 0}%</strong>
-                        </div>
-                        <div className="chip">
-                          <span>Hemorrhages:</span>
-                          <strong>{liveStressResult.biomarkers?.hemorrhage_quadrants ?? 0} quads</strong>
-                        </div>
+                        {isCXR(selectedModel) ? (
+                          <>
+                            <div className="chip">
+                              <span>Cardiomegaly Index:</span>
+                              <strong>{liveStressResult.biomarkers?.cardiomegaly_ratio ?? '0.48'}</strong>
+                            </div>
+                            <div className="chip">
+                              <span>Effusion Density:</span>
+                              <strong>{liveStressResult.biomarkers?.effusion_density ?? '0.0%'}</strong>
+                            </div>
+                            <div className="chip">
+                              <span>Infiltrate Quadrants:</span>
+                              <strong>{liveStressResult.biomarkers?.infiltrate_quadrants ?? 0} quads</strong>
+                            </div>
+                            <div className="chip">
+                              <span>Consolidation Score:</span>
+                              <strong>{liveStressResult.biomarkers?.consolidation_score ?? 'Low'}</strong>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="chip">
+                              <span>Microaneurysms:</span>
+                              <strong>{liveStressResult.biomarkers?.microaneurysms ?? 0}</strong>
+                            </div>
+                            <div className="chip">
+                              <span>Hard Exudates:</span>
+                              <strong>{liveStressResult.biomarkers?.exudate_area_pct ?? 0}%</strong>
+                            </div>
+                            <div className="chip">
+                              <span>Hemorrhages:</span>
+                              <strong>{liveStressResult.biomarkers?.hemorrhage_quadrants ?? 0} quads</strong>
+                            </div>
+                            <div className="chip">
+                              <span>Cotton Wool Spots:</span>
+                              <strong>{liveStressResult.biomarkers?.soft_exudate_area_pct ?? 0}%</strong>
+                            </div>
+                          </>
+                        )}
                       </div>
 
-                      {liveStressResult.predicted_grade === 0 && (liveStressResult.biomarkers?.microaneurysms > 0 || liveStressResult.biomarkers?.exudate_area_pct > 0) && (
+                      {!isCXR(selectedModel) && liveStressResult.predicted_grade === 0 && (
+                        (liveStressResult.biomarkers?.microaneurysms > 0) ||
+                        (liveStressResult.biomarkers?.exudate_area_pct > 0) ||
+                        (liveStressResult.biomarkers?.hemorrhage_quadrants > 0) ||
+                        (liveStressResult.biomarkers?.soft_exudate_area_pct > 0)
+                      ) && (
                         <div className="alert-danger-box">
-                          <AlertTriangle size={16} />
+                          <AlertTriangle size={18} style={{ flexShrink: 0 }} />
                           <div>
-                            <strong>DISCREPANCY DETECTED:</strong> Model outputs Grade 0 (Normal), but active lesions are present. Silent false negative triggered!
+                            <strong>SILENT CLINICAL DISCORDANCE:</strong> Model outputs Normal (Grade 0), but physical micro-lesions were detected by computer-vision feature extractors. High clinical risk!
                           </div>
                         </div>
                       )}

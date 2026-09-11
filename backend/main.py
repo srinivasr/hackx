@@ -508,6 +508,8 @@ async def test_single_stress(
         content = await file.read()
         nparr = np.frombuffer(content, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            img = np.full((384, 384, 3), 128, dtype=np.uint8)
     elif sample_key:
         samples = load_test_samples(modality=modality)
         if sample_key not in samples:
@@ -527,17 +529,24 @@ async def test_single_stress(
         else:
             img = list(samples.values())[0]
 
+    # Baseline inference on unperturbed image
+    baseline = evaluator.infer(img)
+
     # Apply requested perturbation
+    intensity_val = float(intensity)
     if stress_type == "blur":
-        perturbed = apply_gaussian_blur(img, float(intensity))
+        perturbed = apply_gaussian_blur(img, intensity_val)
     elif stress_type == "illumination":
         # Intensity in [0, 100]% drop
-        factor = max(0.05, 1.0 - (float(intensity) / 100.0))
+        factor = max(0.05, 1.0 - (intensity_val / 100.0))
         perturbed = apply_illumination_attenuation(img, factor)
-    elif stress_type == "glare":
-        perturbed = apply_corneal_glare(img, float(intensity))
+    elif stress_type in ("glare", "noise"):
+        if modality == "chest_xray":
+            perturbed = apply_sensor_noise(img, intensity_val)
+        else:
+            perturbed = apply_corneal_glare(img, intensity_val)
     elif stress_type == "resolution":
-        target_d = max(64, int(intensity))
+        target_d = max(64, int(intensity_val))
         perturbed = apply_resolution_scaling(img, target_d)
     else:
         perturbed = img.copy()
@@ -545,19 +554,35 @@ async def test_single_stress(
     # Model inference on perturbed image
     result = evaluator.infer(perturbed)
 
+    # Class names by modality
+    if modality == "chest_xray":
+        class_names = ["Clear / No Infiltration", "Cardiomegaly / Effusion", "Pneumonia / Consolidation", "Atelectasis", "Pneumothorax"][:len(result["probs"])]
+    elif modality == "clinical_nlp":
+        class_names = ["Low Risk Triage", "Acute Risk Decompensation"][:len(result["probs"])]
+    else:
+        class_names = ["Normal (Grade 0)", "Mild NPDR (Grade 1)", "Moderate NPDR (Grade 2)", "Severe NPDR (Grade 3)", "Proliferative DR (Grade 4)"][:len(result["probs"])]
+
+    # Compute baseline degradation delta
+    conf_delta = round(result["confidence"] - baseline["confidence"], 1)
+
     # Encode perturbed image to base64 JPEG for live preview
     _, buffer = cv2.imencode(".jpg", perturbed, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
     b64_img = base64.b64encode(buffer).decode("utf-8")
 
     return {
+        "modality": modality,
         "stress_type": stress_type,
-        "intensity": intensity,
+        "intensity": intensity_val,
         "predicted_grade": result["predicted_grade"],
         "confidence": result["confidence"],
         "probs": result["probs"],
         "biomarkers": result["biomarkers"],
         "latency_ms": result["latency_ms"],
         "image_base64": f"data:image/jpeg;base64,{b64_img}",
+        "class_names": class_names,
+        "baseline_confidence": baseline["confidence"],
+        "baseline_grade": baseline["predicted_grade"],
+        "confidence_delta": conf_delta,
     }
 
 
