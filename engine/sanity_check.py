@@ -68,3 +68,67 @@ def verify_lesion_classification_consensus(
         "evidence_summary": evidence,
         "verdict": verdict_text,
     }
+
+
+def compute_subgroup_fairness(
+    predictions: List[int],
+    ground_truths: List[int],
+    demographics: List[str]
+) -> Dict[str, Any]:
+    """Computes fairness metrics (FPR/FNR parity, Equalized Odds) across demographic groups."""
+    subgroups = list(set(demographics))
+    metrics_by_group = {}
+    
+    total_fpr_diff = 0.0
+    total_fnr_diff = 0.0
+    
+    overall_fpr = 0.0
+    overall_fnr = 0.0
+    
+    # Simple binary classification mapping for fairness (0=Normal, >0=Abnormal)
+    y_pred = [1 if p > 0 else 0 for p in predictions]
+    y_true = [1 if t > 0 else 0 for t in ground_truths]
+    
+    # Calculate overall metrics
+    fp_overall = sum(1 for p, t in zip(y_pred, y_true) if p == 1 and t == 0)
+    tn_overall = sum(1 for p, t in zip(y_pred, y_true) if p == 0 and t == 0)
+    fn_overall = sum(1 for p, t in zip(y_pred, y_true) if p == 0 and t == 1)
+    tp_overall = sum(1 for p, t in zip(y_pred, y_true) if p == 1 and t == 1)
+    
+    overall_fpr = fp_overall / (fp_overall + tn_overall) if (fp_overall + tn_overall) > 0 else 0.0
+    overall_fnr = fn_overall / (fn_overall + tp_overall) if (fn_overall + tp_overall) > 0 else 0.0
+    
+    for group in subgroups:
+        group_indices = [i for i, d in enumerate(demographics) if d == group]
+        g_pred = [y_pred[i] for i in group_indices]
+        g_true = [y_true[i] for i in group_indices]
+        
+        fp = sum(1 for p, t in zip(g_pred, g_true) if p == 1 and t == 0)
+        tn = sum(1 for p, t in zip(g_pred, g_true) if p == 0 and t == 0)
+        fn = sum(1 for p, t in zip(g_pred, g_true) if p == 0 and t == 1)
+        tp = sum(1 for p, t in zip(g_pred, g_true) if p == 1 and t == 1)
+        
+        fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
+        fnr = fn / (fn + tp) if (fn + tp) > 0 else 0.0
+        
+        metrics_by_group[group] = {
+            "FPR": fpr,
+            "FNR": fnr,
+            "sample_count": len(group_indices)
+        }
+        
+        total_fpr_diff += abs(fpr - overall_fpr)
+        total_fnr_diff += abs(fnr - overall_fnr)
+        
+    avg_fpr_disparity = total_fpr_diff / len(subgroups) if subgroups else 0.0
+    avg_fnr_disparity = total_fnr_diff / len(subgroups) if subgroups else 0.0
+    
+    is_fair = avg_fpr_disparity <= 0.1 and avg_fnr_disparity <= 0.1
+    
+    return {
+        "subgroups": metrics_by_group,
+        "average_fpr_disparity": avg_fpr_disparity,
+        "average_fnr_disparity": avg_fnr_disparity,
+        "passes_equalized_odds": is_fair,
+        "status": "PASSED" if is_fair else "FAILED - High Demographic Disparity"
+    }

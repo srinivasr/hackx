@@ -980,9 +980,9 @@ export default function App() {
                       </thead>
                       <tbody>
                         <tr>
-                          <td><strong>CHAI Algorithmic Equity</strong></td>
-                          <td>Subgroup Disparity Ratio</td>
-                          <td className="num-tabular" style={{ color: 'var(--text-muted)' }}>&ge; 0.800 (Four-Fifths Rule)</td>
+                          <td><strong>Subgroup Fairness (Equalized Odds)</strong></td>
+                          <td>Average FPR/FNR Disparity</td>
+                          <td className="num-tabular" style={{ color: 'var(--text-muted)' }}>&le; 0.100 Disparity</td>
                           <td className="num-tabular"><strong>{dispRatio !== undefined ? dispRatio.toFixed(3) : '--'}</strong></td>
                           <td>
                             <span className={`status-pill ${isEquityPass ? 'status-pill-pass' : 'status-pill-fail'}`}>
@@ -1537,12 +1537,16 @@ export default function App() {
                         { id: 'illumination', label: 'Exposure Drop' },
                         { id: 'glare', label: 'Poisson Noise' },
                         { id: 'resolution', label: 'Res Scaling' },
+                        { id: 'adversarial', label: 'FGSM Attack' },
+                        { id: 'artifact', label: 'Sensor Dropout' },
                       ]
                     : [
                         { id: 'blur', label: 'Defocus Blur (σ)' },
                         { id: 'illumination', label: 'Flash Drop (%)' },
                         { id: 'glare', label: 'Corneal Glare' },
                         { id: 'resolution', label: 'Sensor Res (px)' },
+                        { id: 'adversarial', label: 'FGSM Attack' },
+                        { id: 'artifact', label: 'Sensor Dropout' },
                       ]
                   ).map((vec) => (
                     <button
@@ -1554,6 +1558,8 @@ export default function App() {
                         if (vec.id === 'blur') setStressIntensity(2.5);
                         else if (vec.id === 'illumination') setStressIntensity(40);
                         else if (vec.id === 'glare') setStressIntensity(0.5);
+                        else if (vec.id === 'adversarial') setStressIntensity(0.05);
+                        else if (vec.id === 'artifact') setStressIntensity(0.2);
                         else setStressIntensity(160);
                       }}
                     >
@@ -1571,13 +1577,15 @@ export default function App() {
                     {stressType === 'illumination' && `-${stressIntensity}% Drop`}
                     {stressType === 'glare' && (isCXR(selectedModel) ? `Noise = ${(stressIntensity * 100).toFixed(0)}%` : `Glare = ${(stressIntensity * 100).toFixed(0)}%`)}
                     {stressType === 'resolution' && `${stressIntensity}×${stressIntensity}px`}
+                    {stressType === 'adversarial' && `Epsilon = ${stressIntensity.toFixed(3)}`}
+                    {stressType === 'artifact' && `Severity = ${(stressIntensity * 100).toFixed(0)}%`}
                   </span>
                 </div>
                 <input
                   type="range"
-                  min={stressType === 'blur' ? 0.0 : stressType === 'illumination' ? 0 : stressType === 'glare' ? 0.0 : 64}
-                  max={stressType === 'blur' ? 6.0 : stressType === 'illumination' ? 90 : stressType === 'glare' ? 0.95 : 384}
-                  step={stressType === 'blur' ? 0.2 : stressType === 'illumination' ? 5 : stressType === 'glare' ? 0.05 : 16}
+                  min={stressType === 'blur' ? 0.0 : stressType === 'illumination' ? 0 : stressType === 'glare' ? 0.0 : stressType === 'adversarial' ? 0.0 : stressType === 'artifact' ? 0.0 : 64}
+                  max={stressType === 'blur' ? 6.0 : stressType === 'illumination' ? 90 : stressType === 'glare' ? 0.95 : stressType === 'adversarial' ? 0.1 : stressType === 'artifact' ? 1.0 : 384}
+                  step={stressType === 'blur' ? 0.2 : stressType === 'illumination' ? 5 : stressType === 'glare' ? 0.05 : stressType === 'adversarial' ? 0.005 : stressType === 'artifact' ? 0.05 : 16}
                   value={stressIntensity}
                   onChange={(e) => setStressIntensity(parseFloat(e.target.value))}
                   className="slider"
@@ -1612,6 +1620,8 @@ export default function App() {
                     if (stressType === 'blur') setStressIntensity(0);
                     else if (stressType === 'illumination') setStressIntensity(0);
                     else if (stressType === 'glare') setStressIntensity(0);
+                    else if (stressType === 'adversarial') setStressIntensity(0);
+                    else if (stressType === 'artifact') setStressIntensity(0);
                     else setStressIntensity(384);
                   }}
                   disabled={stressLoading}

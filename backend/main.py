@@ -20,6 +20,8 @@ from engine.perturbation import (
     apply_corneal_glare,
     apply_sensor_noise,
     apply_resolution_scaling,
+    apply_adversarial_noise,
+    apply_synthetic_artifact,
 )
 from backend.certificate_gen import generate_deployment_certificate
 
@@ -127,6 +129,14 @@ MODEL_REGISTRY = {
         "architecture": "DenseNet-121 Breast Cancer Metastasis (8.0M Params)",
         "modality": "digital_pathology",
         "target_deployment": "Central Histopathology Diagnostic Suite",
+    },
+    "foundation_medsiglip": {
+        "id": "foundation_medsiglip",
+        "name": "Foundation - MedSigLIP (Multimodal Zero-Shot)",
+        "path": "assets/models/foundation/medsiglip_zeroshot.onnx",
+        "architecture": "MedSigLIP ViT-B/16 Contrastive (86M Params)",
+        "modality": "digital_pathology",
+        "target_deployment": "Cloud AI Aggregator",
     },
 }
 
@@ -659,6 +669,10 @@ async def test_single_stress(
     elif stress_type == "resolution":
         target_d = max(64, int(intensity_val))
         perturbed = apply_resolution_scaling(img, target_d)
+    elif stress_type == "adversarial":
+        perturbed = apply_adversarial_noise(img, float(intensity_val))
+    elif stress_type == "artifact":
+        perturbed = apply_synthetic_artifact(img, float(intensity_val))
     else:
         perturbed = img.copy()
 

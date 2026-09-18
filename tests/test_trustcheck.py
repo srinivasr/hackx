@@ -8,9 +8,11 @@ from engine.perturbation import (
     apply_illumination_attenuation,
     apply_corneal_glare,
     apply_resolution_scaling,
+    apply_adversarial_noise,
+    apply_synthetic_artifact,
 )
 from engine.calibration import compute_ece, compute_brier_score
-from engine.sanity_check import verify_lesion_classification_consensus
+from engine.sanity_check import verify_lesion_classification_consensus, compute_subgroup_fairness
 from engine.auditor import CandidateModelEvaluator, run_full_model_audit
 from backend.certificate_gen import generate_deployment_certificate
 
@@ -36,6 +38,15 @@ def test_perturbation_shapes(dummy_image):
 
     scaled = apply_resolution_scaling(dummy_image, 160)
     assert scaled.shape == dummy_image.shape
+
+def test_adversarial_and_artifact_perturbations(dummy_image):
+    adv = apply_adversarial_noise(dummy_image, epsilon=0.05)
+    assert adv.shape == dummy_image.shape
+    assert adv.dtype == np.uint8
+    
+    artifact = apply_synthetic_artifact(dummy_image, intensity=0.5)
+    assert artifact.shape == dummy_image.shape
+    assert artifact.dtype == np.uint8
 
 
 def test_calibration_computation():
@@ -68,6 +79,20 @@ def test_silent_failure_detection():
     )
     assert not check["is_safe"]
     assert check["violation_type"] == "CRITICAL_SILENT_FALSE_NEGATIVE"
+
+
+def test_subgroup_fairness_computation():
+    preds = [1, 1, 0, 0, 1, 0, 1, 0]
+    gts = [1, 0, 0, 1, 1, 0, 0, 0]
+    demographics = ["Alpha", "Beta", "Alpha", "Beta", "Beta", "Alpha", "Alpha", "Beta"]
+    
+    res = compute_subgroup_fairness(preds, gts, demographics)
+    assert "average_fpr_disparity" in res
+    assert "average_fnr_disparity" in res
+    assert "passes_equalized_odds" in res
+    assert "subgroups" in res
+    assert "Alpha" in res["subgroups"]
+    assert "Beta" in res["subgroups"]
 
 
 def test_end_to_end_audit_and_pdf(dummy_image, tmp_path):

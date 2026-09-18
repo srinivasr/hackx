@@ -54,6 +54,32 @@ def apply_resolution_scaling(image_bgr: np.ndarray, target_dim: int) -> np.ndarr
     return cv2.resize(downscaled, (w, h), interpolation=cv2.INTER_LINEAR)
 
 
+def apply_adversarial_noise(image_bgr: np.ndarray, epsilon: float) -> np.ndarray:
+    """Simulates FGSM adversarial attack with structured high-frequency imperceptible noise."""
+    if epsilon <= 0.0:
+        return image_bgr.copy()
+    # Simulate gradient noise direction (sign)
+    np.random.seed(42) # Deterministic for audit reproducibility
+    sign_data = np.sign(np.random.randn(*image_bgr.shape))
+    adversarial = image_bgr.astype(np.float32) + epsilon * 255.0 * sign_data
+    return np.clip(adversarial, 0.0, 255.0).astype(np.uint8)
+
+
+def apply_synthetic_artifact(image_bgr: np.ndarray, intensity: float) -> np.ndarray:
+    """Generative simulation of sensor dropout (dead pixels) or MRI ghosting artifact."""
+    if intensity <= 0.0:
+        return image_bgr.copy()
+    out = image_bgr.copy()
+    h, w = out.shape[:2]
+    # Simulate dead sensor lines/dropout
+    num_lines = int(intensity * h * 0.1)
+    np.random.seed(42)
+    for _ in range(num_lines):
+        y = np.random.randint(0, h)
+        out[y, :] = 0
+    return out
+
+
 def generate_stress_ladder(
     image_bgr: np.ndarray, stress_type: str, steps: int = 5
 ) -> List[Dict[str, Any]]:
@@ -103,6 +129,28 @@ def generate_stress_ladder(
                 "param_name": "dim_px",
                 "param_value": int(d),
                 "label": f"Sensor Resolution ({d}x{d}px)",
+                "image": perturbed,
+            })
+    elif stress_type == "adversarial":
+        epsilons = np.linspace(0.0, 0.1, steps)
+        for e in epsilons:
+            perturbed = apply_adversarial_noise(image_bgr, float(e))
+            ladder.append({
+                "type": "adversarial",
+                "param_name": "epsilon",
+                "param_value": round(float(e), 3),
+                "label": f"FGSM Noise (eps={e:.3f})",
+                "image": perturbed,
+            })
+    elif stress_type == "artifact":
+        intensities = np.linspace(0.0, 1.0, steps)
+        for i in intensities:
+            perturbed = apply_synthetic_artifact(image_bgr, float(i))
+            ladder.append({
+                "type": "artifact",
+                "param_name": "intensity",
+                "param_value": round(float(i), 2),
+                "label": f"Sensor Dropout (int={i:.2f})",
                 "image": perturbed,
             })
     else:

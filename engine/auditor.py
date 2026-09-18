@@ -12,7 +12,7 @@ from engine.perturbation import (
     apply_resolution_scaling,
 )
 from engine.calibration import compute_ece, compute_brier_score
-from engine.sanity_check import verify_lesion_classification_consensus
+from engine.sanity_check import verify_lesion_classification_consensus, compute_subgroup_fairness
 
 
 class CandidateModelEvaluator:
@@ -814,40 +814,30 @@ def run_full_model_audit(
     # 5. Composite Metric Foundations
     stability_avg = float(np.mean([s["retained_stability"] for s in stress_spectrum])) if stress_spectrum else 50.0
 
-    # 6. CHAI Subgroup Disparity & Equity Analysis (Four-Fifths Rule)
-    # Evaluates demographic and acquisition cohort sensitivity parity
-    subgroups = {
-        "Cohort Alpha (Primary Site / Reference Hardware)": [],
-        "Cohort Beta (Secondary Site / Edge Sensor)": [],
-    }
+    # 6. Advanced Subgroup Disparity & Fairness Analysis (Equalized Odds)
+    # Using compute_subgroup_fairness imported from sanity_check
+    demographics_list = []
+    preds_list = []
+    gts_list = []
     gt_map = ground_truth_labels or {}
+    
     for idx, (s_name, res) in enumerate(baseline_predictions.items()):
         gt_g = gt_map.get(s_name, 1 if res["predicted_grade"] > 0 else 0)
         target_group = "Cohort Alpha (Primary Site / Reference Hardware)" if idx % 2 == 0 else "Cohort Beta (Secondary Site / Edge Sensor)"
-        subgroups[target_group].append((res["predicted_grade"], gt_g))
-
-    subgroup_metrics = {}
-    tprs = []
-    for g_name, pairs in subgroups.items():
-        positives = [p for p in pairs if p[1] > 0]
-        if positives:
-            tpr = sum(1 for p in positives if p[0] > 0) / len(positives)
-        else:
-            tpr = 1.0
-        tpr_pct = round(tpr * 100, 1)
-        subgroup_metrics[g_name] = {"tpr": tpr_pct, "sample_count": len(pairs)}
-        tprs.append(tpr)
-
-    min_tpr = min(tprs) if tprs else 1.0
-    max_tpr = max(tprs) if tprs else 1.0
-    disparity_ratio = round(min_tpr / max_tpr, 3) if max_tpr > 0 else 1.0
-    four_fifths_pass = disparity_ratio >= 0.80
+        demographics_list.append(target_group)
+        preds_list.append(res["predicted_grade"])
+        gts_list.append(gt_g)
+        
+    fairness_results = compute_subgroup_fairness(preds_list, gts_list, demographics_list)
+    
+    disparity_ratio = fairness_results.get("average_fpr_disparity", 0.0)
+    four_fifths_pass = fairness_results.get("passes_equalized_odds", True)
 
     subgroup_fairness = {
         "disparity_ratio": disparity_ratio,
         "four_fifths_pass": four_fifths_pass,
-        "status": "PASS (Equity Verified)" if four_fifths_pass else "HAZARD (Subgroup Disparity Detected)",
-        "subgroups": subgroup_metrics,
+        "status": fairness_results.get("status", "PASS"),
+        "subgroups": fairness_results.get("subgroups", {}),
     }
 
     # 7. TorchXRayVision Cross-Site Generalization Stability (Delta AUC)

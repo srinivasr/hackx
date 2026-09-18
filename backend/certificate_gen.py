@@ -236,6 +236,8 @@ def generate_deployment_certificate(audit_data: Dict[str, Any], output_pdf_path:
             "illumination_ladder": ("Flash / Illumination Drop", "0%", "-80%"),
             "glare_ladder": ("Corneal Glare Reflection", "0.00", "0.95"),
             "resolution_ladder": ("Sensor Downscaling", "384px", "96px"),
+            "adversarial_ladder": ("Adversarial FGSM Attack", "ε=0.0", "ε=0.1"),
+            "artifact_ladder": ("Generative Sensor Artifact", "0%", "100%"),
         }
         for key, (label, min_s, max_s) in vector_names.items():
             ladder = tests.get(key, [])
@@ -391,9 +393,9 @@ def generate_deployment_certificate(audit_data: Dict[str, Any], output_pdf_path:
                 Paragraph("<b>Equity Finding</b>", bold_label),
             ],
             [
-                Paragraph("CHAI Subgroup Disparity Ratio", body_style),
+                Paragraph("Subgroup Fairness (Equalized Odds) Average FPR/FNR Disparity", body_style),
                 Paragraph(f"{subgroup_data.get('disparity_ratio', 1.0):.3f}", body_style),
-                Paragraph("&gt;= 0.800 (Four-Fifths Rule)", body_style),
+                Paragraph("&lt;= 0.100 Disparity", body_style),
                 Paragraph(f"<b>{subgroup_data.get('status', 'VERIFIED')}</b>", body_style),
             ],
             [
