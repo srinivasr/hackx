@@ -20,6 +20,8 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold
+from fairlearn.postprocessing import ThresholdOptimizer
+from fairlearn.metrics import MetricFrame, false_negative_rate, false_positive_rate
 
 
 def compute_rbf_mmd(x: np.ndarray, y: np.ndarray, gamma: Optional[float] = None) -> float:
@@ -138,9 +140,15 @@ class FairnessEngine:
                 labels=["<18", "18-65", ">65"],
             )
 
-        # Create intersectional demographic feature (Sex x Age)
-        if "sex" in df.columns and "age_bracket" in df.columns:
-            df["sex_age_intersection"] = df["sex"].astype(str) + "_" + df["age_bracket"].astype(str)
+        # Create full cartesian intersectional demographic feature
+        intersection_cols = []
+        if "sex" in df.columns: intersection_cols.append("sex")
+        if "age_bracket" in df.columns: intersection_cols.append("age_bracket")
+        if "scanner_type" in df.columns: intersection_cols.append("scanner_type")
+        if "site_id" in df.columns: intersection_cols.append("site_id")
+        
+        if len(intersection_cols) > 1:
+            df["full_intersection"] = df[intersection_cols].astype(str).agg('_'.join, axis=1)
 
         slices_report: Dict[str, Dict[str, Any]] = {}
 
@@ -150,10 +158,10 @@ class FairnessEngine:
         slices_report["scanner_type"] = self._calculate_subgroup_metrics(df, "scanner_type")
         slices_report["site_id"] = self._calculate_subgroup_metrics(df, "site_id")
         
-        # 2. Intersectional axis (Seyyed-Kalantari et al. 2021)
-        if "sex_age_intersection" in df.columns:
-            slices_report["intersectional_sex_age"] = self._calculate_subgroup_metrics(
-                df, "sex_age_intersection"
+        # 2. Intersectional axis (Cartesian Product)
+        if "full_intersection" in df.columns:
+            slices_report["cartesian_intersection"] = self._calculate_subgroup_metrics(
+                df, "full_intersection"
             )
 
         # 3. Disparity Ratios against defined references
@@ -198,13 +206,11 @@ class FairnessEngine:
 
         # 6. Intersectional Maximum Disparity
         intersectional_ratios = {}
-        if "intersectional_sex_age" in slices_report:
-            ref_intersect = f"{self.ref_sex}_{self.ref_age}"
-            ref_int_fnr = max(ref_floor, slices_report["intersectional_sex_age"].get(ref_intersect, {}).get("fnr", 0.08))
-            for int_grp, m in slices_report["intersectional_sex_age"].items():
-                if int_grp != ref_intersect:
-                    r = round(min(10.0, m.get("fnr", 0.0) / ref_int_fnr), 2)
-                    intersectional_ratios[int_grp] = r
+        if "cartesian_intersection" in slices_report:
+            ref_int_fnr = max(ref_floor, slices_report["cartesian_intersection"].get(list(slices_report["cartesian_intersection"].keys())[0], {}).get("fnr", 0.08))
+            for int_grp, m in slices_report["cartesian_intersection"].items():
+                r = round(min(10.0, m.get("fnr", 0.0) / max(1e-4, ref_int_fnr)), 2)
+                intersectional_ratios[int_grp] = r
 
         # Highest observed disparity across all single & intersectional slices
         all_disparities = [pediatric_ratio, female_ratio, cr_ratio]
@@ -268,6 +274,28 @@ class FairnessEngine:
                 "is_underpowered": is_underpowered,
             }
         return metrics
+
+    def optimize_thresholds_equalized_odds(
+        self,
+        estimator: Any,
+        X: pd.DataFrame,
+        y: pd.Series,
+        sensitive_features: pd.Series
+    ) -> ThresholdOptimizer:
+        """
+        Active Bias Mitigation using Fairlearn's Linear Programming post-processing.
+        Finds group-specific decision thresholds to equalize TPR and FPR across all 
+        specified demographic subgroups, fulfilling formal Equalized Odds.
+        """
+        optimizer = ThresholdOptimizer(
+            estimator=estimator,
+            constraints="equalized_odds",
+            predict_method="predict_proba",
+            prefit=False
+        )
+        # Train the optimizer to find ideal thresholds for each sensitive group
+        optimizer.fit(X, y, sensitive_features=sensitive_features)
+        return optimizer
 
     def detect_latent_distribution_drift(
         self,

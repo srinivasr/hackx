@@ -1,6 +1,7 @@
 from typing import Dict, List, Tuple, Any
 import cv2
 import numpy as np
+from skimage.metrics import structural_similarity as ssim
 
 
 def apply_gaussian_blur(image_bgr: np.ndarray, sigma: float) -> np.ndarray:
@@ -65,6 +66,27 @@ def apply_adversarial_noise(image_bgr: np.ndarray, epsilon: float) -> np.ndarray
     return np.clip(adversarial, 0.0, 255.0).astype(np.uint8)
 
 
+def apply_pgd_noise(image_bgr: np.ndarray, epsilon: float, alpha: float, iterations: int = 10) -> np.ndarray:
+    """Simulates Projected Gradient Descent (PGD) iterative adversarial attack."""
+    if epsilon <= 0.0:
+        return image_bgr.copy()
+        
+    np.random.seed(42)
+    perturbed = image_bgr.astype(np.float32)
+    clean = image_bgr.astype(np.float32)
+    
+    for _ in range(iterations):
+        # Simulate local gradient sign at current iteration
+        sign_data = np.sign(np.random.randn(*image_bgr.shape))
+        perturbed = perturbed + alpha * 255.0 * sign_data
+        
+        # Project back to L_inf epsilon ball
+        delta = np.clip(perturbed - clean, -epsilon * 255.0, epsilon * 255.0)
+        perturbed = np.clip(clean + delta, 0.0, 255.0)
+        
+    return perturbed.astype(np.uint8)
+
+
 def apply_synthetic_artifact(image_bgr: np.ndarray, intensity: float) -> np.ndarray:
     """Generative simulation of sensor dropout (dead pixels) or MRI ghosting artifact."""
     if intensity <= 0.0:
@@ -113,84 +135,62 @@ def generate_stress_ladder(
     """Generates a ladder of perturbed test images with increasing clinical severity."""
     ladder = []
     
+    def _add_rung(ladder_list, type_str, p_name, p_value, label_str, perturbed_img):
+        # Calculate Structural Similarity Index (SSIM)
+        # Convert BGR to Grayscale for standard SSIM calculation if needed, or use multichannel
+        score = ssim(image_bgr, perturbed_img, channel_axis=-1, data_range=255)
+        
+        ladder_list.append({
+            "type": type_str,
+            "param_name": p_name,
+            "param_value": p_value,
+            "label": label_str,
+            "image": perturbed_img,
+            "ssim_score": round(float(score), 3)
+        })
+    
     if stress_type == "blur":
         sigmas = np.linspace(0.0, 6.0, steps)
         for s in sigmas:
             perturbed = apply_gaussian_blur(image_bgr, float(s))
-            ladder.append({
-                "type": "blur",
-                "param_name": "sigma",
-                "param_value": round(float(s), 2),
-                "label": f"Defocus Blur (σ={s:.1f})",
-                "image": perturbed,
-            })
+            _add_rung(ladder, "blur", "sigma", round(float(s), 2), f"Defocus Blur (σ={s:.1f})", perturbed)
     elif stress_type == "illumination":
         factors = np.linspace(1.0, 0.2, steps)
         for f in factors:
             perturbed = apply_illumination_attenuation(image_bgr, float(f))
             drop_pct = round((1.0 - float(f)) * 100, 1)
-            ladder.append({
-                "type": "illumination",
-                "param_name": "drop_pct",
-                "param_value": drop_pct,
-                "label": f"Flash Drop (-{drop_pct}%)",
-                "image": perturbed,
-            })
+            _add_rung(ladder, "illumination", "drop_pct", drop_pct, f"Flash Drop (-{drop_pct}%)", perturbed)
     elif stress_type == "glare":
         intensities = np.linspace(0.0, 0.9, steps)
         for i in intensities:
             perturbed = apply_corneal_glare(image_bgr, float(i))
-            ladder.append({
-                "type": "glare",
-                "param_name": "intensity",
-                "param_value": round(float(i), 2),
-                "label": f"Corneal Glare (int={i:.2f})",
-                "image": perturbed,
-            })
+            _add_rung(ladder, "glare", "intensity", round(float(i), 2), f"Corneal Glare (int={i:.2f})", perturbed)
     elif stress_type == "resolution":
         dims = np.linspace(image_bgr.shape[0], 96, steps, dtype=int)
         for d in dims:
             perturbed = apply_resolution_scaling(image_bgr, int(d))
-            ladder.append({
-                "type": "resolution",
-                "param_name": "dim_px",
-                "param_value": int(d),
-                "label": f"Sensor Resolution ({d}x{d}px)",
-                "image": perturbed,
-            })
+            _add_rung(ladder, "resolution", "dim_px", int(d), f"Sensor Resolution ({d}x{d}px)", perturbed)
     elif stress_type == "adversarial":
         epsilons = np.linspace(0.0, 0.1, steps)
         for e in epsilons:
             perturbed = apply_adversarial_noise(image_bgr, float(e))
-            ladder.append({
-                "type": "adversarial",
-                "param_name": "epsilon",
-                "param_value": round(float(e), 3),
-                "label": f"FGSM Noise (eps={e:.3f})",
-                "image": perturbed,
-            })
+            _add_rung(ladder, "adversarial", "epsilon", round(float(e), 3), f"FGSM Noise (eps={e:.3f})", perturbed)
+    elif stress_type == "adversarial_pgd":
+        epsilons = np.linspace(0.0, 0.1, steps)
+        for e in epsilons:
+            alpha = float(e) / 4.0 if float(e) > 0 else 0.0
+            perturbed = apply_pgd_noise(image_bgr, float(e), alpha=alpha, iterations=10)
+            _add_rung(ladder, "adversarial_pgd", "epsilon", round(float(e), 3), f"PGD Noise (eps={e:.3f})", perturbed)
     elif stress_type == "artifact":
         intensities = np.linspace(0.0, 1.0, steps)
         for i in intensities:
             perturbed = apply_synthetic_artifact(image_bgr, float(i))
-            ladder.append({
-                "type": "artifact",
-                "param_name": "intensity",
-                "param_value": round(float(i), 2),
-                "label": f"Sensor Dropout (int={i:.2f})",
-                "image": perturbed,
-            })
+            _add_rung(ladder, "artifact", "intensity", round(float(i), 2), f"Sensor Dropout (int={i:.2f})", perturbed)
     elif stress_type == "occlusion":
         fractions = np.linspace(0.0, 0.4, steps)
         for f in fractions:
             perturbed = apply_spatial_occlusion(image_bgr, float(f))
-            ladder.append({
-                "type": "occlusion",
-                "param_name": "occlusion_fraction",
-                "param_value": round(float(f), 2),
-                "label": f"Occlusion/Cutout (frac={f:.2f})",
-                "image": perturbed,
-            })
+            _add_rung(ladder, "occlusion", "occlusion_fraction", round(float(f), 2), f"Occlusion/Cutout (frac={f:.2f})", perturbed)
     else:
         raise ValueError(f"Unknown stress type: {stress_type}")
         
