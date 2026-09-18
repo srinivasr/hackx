@@ -22,6 +22,7 @@ from engine.perturbation import (
     apply_resolution_scaling,
     apply_adversarial_noise,
     apply_synthetic_artifact,
+    apply_spatial_occlusion,
 )
 from backend.certificate_gen import generate_deployment_certificate
 
@@ -673,6 +674,8 @@ async def test_single_stress(
         perturbed = apply_adversarial_noise(img, float(intensity_val))
     elif stress_type == "artifact":
         perturbed = apply_synthetic_artifact(img, float(intensity_val))
+    elif stress_type == "occlusion":
+        perturbed = apply_spatial_occlusion(img, float(intensity_val))
     else:
         perturbed = img.copy()
 

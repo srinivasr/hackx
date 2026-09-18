@@ -10,6 +10,7 @@ from engine.perturbation import (
     apply_resolution_scaling,
     apply_adversarial_noise,
     apply_synthetic_artifact,
+    apply_spatial_occlusion,
 )
 from engine.calibration import compute_ece, compute_brier_score
 from engine.sanity_check import verify_lesion_classification_consensus, compute_subgroup_fairness
@@ -47,6 +48,17 @@ def test_adversarial_and_artifact_perturbations(dummy_image):
     artifact = apply_synthetic_artifact(dummy_image, intensity=0.5)
     assert artifact.shape == dummy_image.shape
     assert artifact.dtype == np.uint8
+
+def test_spatial_occlusion(dummy_image):
+    occluded = apply_spatial_occlusion(dummy_image, occlusion_fraction=0.3)
+    assert occluded.shape == dummy_image.shape
+    assert occluded.dtype == np.uint8
+    # Ensure there is a significant amount of black pixels (0)
+    assert np.mean(occluded) < np.mean(dummy_image)
+    black_pixels = np.sum(np.all(occluded == [0, 0, 0], axis=-1))
+    total_pixels = dummy_image.shape[0] * dummy_image.shape[1]
+    # Check that at least 30% of pixels are black (some overlap might happen, so check > 20%)
+    assert black_pixels / total_pixels > 0.2
 
 
 def test_calibration_computation():

@@ -1539,6 +1539,7 @@ export default function App() {
                         { id: 'resolution', label: 'Res Scaling' },
                         { id: 'adversarial', label: 'FGSM Attack' },
                         { id: 'artifact', label: 'Sensor Dropout' },
+                        { id: 'occlusion', label: 'Spatial Cutout' },
                       ]
                     : [
                         { id: 'blur', label: 'Defocus Blur (σ)' },
@@ -1547,6 +1548,7 @@ export default function App() {
                         { id: 'resolution', label: 'Sensor Res (px)' },
                         { id: 'adversarial', label: 'FGSM Attack' },
                         { id: 'artifact', label: 'Sensor Dropout' },
+                        { id: 'occlusion', label: 'Spatial Cutout' },
                       ]
                   ).map((vec) => (
                     <button
@@ -1560,6 +1562,7 @@ export default function App() {
                         else if (vec.id === 'glare') setStressIntensity(0.5);
                         else if (vec.id === 'adversarial') setStressIntensity(0.05);
                         else if (vec.id === 'artifact') setStressIntensity(0.2);
+                        else if (vec.id === 'occlusion') setStressIntensity(0.15);
                         else setStressIntensity(160);
                       }}
                     >
@@ -1579,13 +1582,14 @@ export default function App() {
                     {stressType === 'resolution' && `${stressIntensity}×${stressIntensity}px`}
                     {stressType === 'adversarial' && `Epsilon = ${stressIntensity.toFixed(3)}`}
                     {stressType === 'artifact' && `Severity = ${(stressIntensity * 100).toFixed(0)}%`}
+                    {stressType === 'occlusion' && `Coverage = ${(stressIntensity * 100).toFixed(0)}%`}
                   </span>
                 </div>
                 <input
                   type="range"
-                  min={stressType === 'blur' ? 0.0 : stressType === 'illumination' ? 0 : stressType === 'glare' ? 0.0 : stressType === 'adversarial' ? 0.0 : stressType === 'artifact' ? 0.0 : 64}
-                  max={stressType === 'blur' ? 6.0 : stressType === 'illumination' ? 90 : stressType === 'glare' ? 0.95 : stressType === 'adversarial' ? 0.1 : stressType === 'artifact' ? 1.0 : 384}
-                  step={stressType === 'blur' ? 0.2 : stressType === 'illumination' ? 5 : stressType === 'glare' ? 0.05 : stressType === 'adversarial' ? 0.005 : stressType === 'artifact' ? 0.05 : 16}
+                  min={stressType === 'blur' ? 0.0 : stressType === 'illumination' ? 0 : stressType === 'glare' ? 0.0 : stressType === 'adversarial' ? 0.0 : stressType === 'artifact' || stressType === 'occlusion' ? 0.0 : 64}
+                  max={stressType === 'blur' ? 6.0 : stressType === 'illumination' ? 90 : stressType === 'glare' ? 0.95 : stressType === 'adversarial' ? 0.1 : stressType === 'artifact' ? 1.0 : stressType === 'occlusion' ? 0.5 : 384}
+                  step={stressType === 'blur' ? 0.2 : stressType === 'illumination' ? 5 : stressType === 'glare' ? 0.05 : stressType === 'adversarial' ? 0.005 : stressType === 'artifact' ? 0.05 : stressType === 'occlusion' ? 0.05 : 16}
                   value={stressIntensity}
                   onChange={(e) => setStressIntensity(parseFloat(e.target.value))}
                   className="slider"
@@ -1622,6 +1626,7 @@ export default function App() {
                     else if (stressType === 'glare') setStressIntensity(0);
                     else if (stressType === 'adversarial') setStressIntensity(0);
                     else if (stressType === 'artifact') setStressIntensity(0);
+                    else if (stressType === 'occlusion') setStressIntensity(0);
                     else setStressIntensity(384);
                   }}
                   disabled={stressLoading}

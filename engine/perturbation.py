@@ -80,6 +80,33 @@ def apply_synthetic_artifact(image_bgr: np.ndarray, intensity: float) -> np.ndar
     return out
 
 
+def apply_spatial_occlusion(image_bgr: np.ndarray, occlusion_fraction: float) -> np.ndarray:
+    """Random spatial cutout/occlusion testing for missing input regions."""
+    if occlusion_fraction <= 0.0:
+        return image_bgr.copy()
+    
+    out = image_bgr.copy()
+    h, w = out.shape[:2]
+    area = h * w
+    target_occlusion_area = area * occlusion_fraction
+    
+    np.random.seed(42)
+    occluded_area = 0
+    
+    while occluded_area < target_occlusion_area:
+        # Random size between 5% and 20% of image dimensions
+        box_w = np.random.randint(max(1, int(w * 0.05)), max(2, int(w * 0.20)))
+        box_h = np.random.randint(max(1, int(h * 0.05)), max(2, int(h * 0.20)))
+        
+        x = np.random.randint(0, max(1, w - box_w))
+        y = np.random.randint(0, max(1, h - box_h))
+        
+        out[y:y+box_h, x:x+box_w] = 0
+        occluded_area += (box_w * box_h)
+        
+    return out
+
+
 def generate_stress_ladder(
     image_bgr: np.ndarray, stress_type: str, steps: int = 5
 ) -> List[Dict[str, Any]]:
@@ -151,6 +178,17 @@ def generate_stress_ladder(
                 "param_name": "intensity",
                 "param_value": round(float(i), 2),
                 "label": f"Sensor Dropout (int={i:.2f})",
+                "image": perturbed,
+            })
+    elif stress_type == "occlusion":
+        fractions = np.linspace(0.0, 0.4, steps)
+        for f in fractions:
+            perturbed = apply_spatial_occlusion(image_bgr, float(f))
+            ladder.append({
+                "type": "occlusion",
+                "param_name": "occlusion_fraction",
+                "param_value": round(float(f), 2),
+                "label": f"Occlusion/Cutout (frac={f:.2f})",
                 "image": perturbed,
             })
     else:
