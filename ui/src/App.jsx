@@ -21,9 +21,12 @@ import {
   Sun,
   Moon,
   Info,
+  BookOpen,
 } from 'lucide-react';
 import './App.css';
 import AurocCurveViewer from './AurocCurveViewer';
+import AboutArchitectureDeck from './AboutArchitectureDeck';
+import DocumentationView from './DocumentationView';
 
 export default function App() {
   const [theme, setTheme] = useState(() => {
@@ -76,6 +79,10 @@ export default function App() {
   const [liveStressResult, setLiveStressResult] = useState(null);
   const [stressLoading, setStressLoading] = useState(false);
   const [customScanFile, setCustomScanFile] = useState(null);
+
+  const [activeArchStep, setActiveArchStep] = useState(0);
+
+  // Removed IntersectionObserver logic for stepper
 
   // Fetch registered models & datasets with retry mechanism
   useEffect(() => {
@@ -430,7 +437,7 @@ export default function App() {
         <div className="sidebar-header">
           <div className="sidebar-brand">
             <div className="brand-icon-wrap">
-              <ShieldAlert size={16} />
+              <img src="/logo.png" alt="TrustCheck" className="brand-logo-img" />
             </div>
             <div className="brand-text">
               <span className="brand-title">TrustCheck</span>
@@ -567,6 +574,31 @@ export default function App() {
             <Upload size={14} />
             <span>Ingest Benchmark</span>
           </button>
+          
+          <button
+            onClick={() => {
+              setActiveTab('about');
+              setMobileSidebarOpen(false);
+            }}
+            className={`sidebar-action-btn ${activeTab === 'about' ? 'active' : ''}`}
+            style={{ marginTop: '4px' }}
+          >
+            <Info size={14} />
+            <span>About TrustCheck</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('docs');
+              setMobileSidebarOpen(false);
+            }}
+            className={`sidebar-action-btn ${activeTab === 'docs' ? 'active' : ''}`}
+            style={{ marginTop: '4px' }}
+          >
+            <BookOpen size={14} />
+            <span>Documentation & Lexicon</span>
+          </button>
+
           <div className="sidebar-footer-row">
             <div className="engine-status">
               <span className="status-indicator live" />
@@ -586,48 +618,61 @@ export default function App() {
 
       {/* Main Viewport */}
       <div className="main-viewport">
-        <header className="workspace-header">
-          <div className="header-left-group">
-            <button
-              className="mobile-menu-btn"
-              onClick={() => setMobileSidebarOpen(true)}
-              aria-label="Open navigation menu"
-              title="Open Navigation"
-            >
-              <Menu size={18} />
-            </button>
-            <div className="header-breadcrumbs">
-              <span className="crumb-root">TrustCheck</span>
-              <span className="crumb-sep">/</span>
-              <span className="crumb-segment">{selectedModel.startsWith('dr') ? 'Retinal Fundus' : selectedModel.startsWith('derm') ? 'Dermatology' : selectedModel.startsWith('path') ? 'Digital Pathology' : selectedModel.startsWith('nlp') ? 'Clinical NLP' : 'Chest Radiography'}</span>
-              <span className="crumb-sep">/</span>
-              <span className="crumb-active">{selectedModel}</span>
-            </div>
-          </div>
-
-          <div className="workspace-actions">
-            {auditData?.certificate_url && (
-              <a
-                href={auditData.certificate_url}
-                download
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-secondary btn-sm"
+        {/* Workspace Header (Hidden in About and Docs sections) */}
+        {activeTab !== 'about' && activeTab !== 'docs' ? (
+          <header className="workspace-header">
+            <div className="header-left-group">
+              <button
+                className="mobile-menu-btn"
+                onClick={() => setMobileSidebarOpen(true)}
+                aria-label="Open navigation menu"
+                title="Open Navigation"
               >
-                <Download size={13} />
-                <span>Download Dossier</span>
-              </a>
-            )}
-            <button
-              onClick={handleRunAudit}
-              disabled={loading}
-              className="btn btn-primary btn-sm"
-            >
-              <RefreshCw size={13} className={loading ? 'spin' : ''} />
-              <span>{loading ? 'Auditing Model...' : 'Run Single Audit'}</span>
-            </button>
-          </div>
-        </header>
+                <Menu size={18} />
+              </button>
+              <div className="header-breadcrumbs">
+                <img src="/logo.png" alt="" className="breadcrumb-logo-img" />
+                <span className="crumb-root">TrustCheck</span>
+                <span className="crumb-sep">/</span>
+                <span className="crumb-segment">{selectedModel.startsWith('dr') ? 'Retinal Fundus' : selectedModel.startsWith('derm') ? 'Dermatology' : selectedModel.startsWith('path') ? 'Digital Pathology' : selectedModel.startsWith('nlp') ? 'Clinical NLP' : 'Chest Radiography'}</span>
+                <span className="crumb-sep">/</span>
+                <span className="crumb-active">{selectedModel}</span>
+              </div>
+            </div>
+
+            <div className="workspace-actions">
+              {auditData?.certificate_url && (
+                <a
+                  href={auditData.certificate_url}
+                  download
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-secondary btn-sm"
+                >
+                  <Download size={13} />
+                  <span>Download Dossier</span>
+                </a>
+              )}
+              <button
+                onClick={handleRunAudit}
+                disabled={loading}
+                className="btn btn-primary btn-sm"
+              >
+                <RefreshCw size={13} className={loading ? 'spin' : ''} />
+                <span>{loading ? 'Auditing Model...' : 'Run Single Audit'}</span>
+              </button>
+            </div>
+          </header>
+        ) : (
+          <button
+            className="mobile-menu-btn mobile-about-menu-btn"
+            onClick={() => setMobileSidebarOpen(true)}
+            aria-label="Open navigation menu"
+            title="Open Navigation"
+          >
+            <Menu size={18} />
+          </button>
+        )}
 
         {/* Content Area */}
         <main className="content-view">
@@ -1034,8 +1079,26 @@ export default function App() {
                 </div>
               );
             })()}
+
             </div>
           )
+        )}
+
+        {/* TAB: ABOUT TRUSTCHECK ARCHITECTURE */}
+        {activeTab === 'about' && (
+          <div className="overview-container" style={{ marginTop: '8px' }}>
+            <AboutArchitectureDeck
+              activeStep={activeArchStep}
+              onStepChange={(idx) => setActiveArchStep(idx)}
+            />
+          </div>
+        )}
+
+        {/* TAB: COMPREHENSIVE DOCUMENTATION, 54 METHODS & LEXICON */}
+        {activeTab === 'docs' && (
+          <div className="overview-container" style={{ marginTop: '8px' }}>
+            <DocumentationView />
+          </div>
         )}
 
         {/* TAB 2: COHORT STRESS SUITE (SOTA) */}
@@ -2132,11 +2195,14 @@ export default function App() {
         <div className="modal-backdrop" onClick={() => setShowIngestModal(false)}>
           <div className="modal-window card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <div>
-                <h3 className="modal-title">Clinical AI Ingestion Center</h3>
-                <p className="modal-desc">
-                  Onboard external ONNX neural networks and multicenter clinical cohorts into TrustCheck.
-                </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <img src="/logo.png" alt="TrustCheck" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+                <div>
+                  <h3 className="modal-title">Clinical AI Ingestion Center</h3>
+                  <p className="modal-desc">
+                    Onboard external ONNX neural networks and multicenter clinical cohorts into TrustCheck.
+                  </p>
+                </div>
               </div>
               <button onClick={() => setShowIngestModal(false)} className="btn-icon">
                 <X size={18} />

@@ -22,9 +22,9 @@ def run_audit(model_id: str):
         verify_biomarker_consensus
     ]
     
-    # We are using "llama3.1" by default, assuming Ollama is running it. 
+    # We are using "qwen2.5:7b" by default, assuming Ollama is running it. 
     # If the user has a different model, they can change it here.
-    agent = Agent(model="llama3.1", tools=tools)
+    agent = Agent(model="qwen2.5:7b", tools=tools)
 
     prompt = f"""
 You are an autonomous AWS Strands Red-Teaming Agent.
@@ -58,7 +58,7 @@ Follow this exact loop:
 
     except Exception as e:
         print(f"\n[Agent Error] Could not connect to local Ollama server or execution failed: {e}")
-        print("Please ensure `ollama serve` is running and the 'llama3.1' model is pulled.")
+        print("Please ensure `ollama serve` is running and the 'qwen2.5:7b' model is pulled.")
 
 if __name__ == "__main__":
     model_to_test = sys.argv[1] if len(sys.argv) > 1 else "dr_retinal_lcnet_edge.onnx"

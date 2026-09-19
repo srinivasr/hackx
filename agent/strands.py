@@ -5,7 +5,7 @@ from openai import OpenAI
 
 class Agent:
     """Mock AWS Strands Agent backed by local Ollama API for tool execution."""
-    def __init__(self, model: str = "llama3.1", tools: List[Callable] = None):
+    def __init__(self, model: str = "qwen2.5:7b", tools: List[Callable] = None):
         self.model = model
         self.tools = tools or []
         # Connect to local Ollama instance running in OpenAI-compatible mode

@@ -1,0 +1,24 @@
+.scroll-stack-deck-container {
+  position: relative;
+  width: 100%;
+  padding-bottom: 60px;
+}
+
+.scroll-stack-card {
+  position: sticky;
+  top: 135px; /* Sits right under the sticky stepper header */
+  min-height: calc(100vh - 185px);
+  margin-bottom: 40vh; /* Smooth scrolling runway before the next card arrives */
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--border-subtle);
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.scroll-stack-card:last-child {
+  margin-bottom: 60px;
+}
