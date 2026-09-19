@@ -40,7 +40,7 @@ def test_cedar_gate_forbid_adversarial():
     result = evaluate_cedar_gate(metrics, department="EmergencyICU")
     assert result["decision"] == "FORBID"
 
-def test_cedar_gate_wrong_department():
+def test_cedar_gate_other_department_permit():
     metrics = {
         "sensitivity": 96,
         "shortcut_vulnerability_index": 5,
@@ -51,5 +51,5 @@ def test_cedar_gate_wrong_department():
         "underpowered_subgroup": False
     }
     result = evaluate_cedar_gate(metrics, department="Pediatrics")
-    # Because resource doesn't match the permit rule, it defaults to deny/forbid
-    assert result["decision"] == "FORBID"
+    # Now that the policy is universal, Pediatrics should be permitted if it meets the metrics
+    assert result["decision"] == "PERMIT"

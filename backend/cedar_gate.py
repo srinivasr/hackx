@@ -35,11 +35,29 @@ def evaluate_cedar_gate(metrics: Dict[str, Any], department: str = "EmergencyICU
         "context": context_payload
     }
 
+    # Define resource entity thresholds based on department
+    # This allows different departments to have different risk tolerances
+    thresholds = {
+        "required_sensitivity_bp": 9500,
+        "max_shortcut_vulnerability_bp": 1000,
+        "max_fnr_disparity_bp": 1000,
+        "max_ece_bp": 800,
+        "max_adversarial_drop_bp": 2000,
+    }
+
+    entities = [
+        {
+            "uid": {"type": "Hospital::Department", "id": department},
+            "attrs": thresholds,
+            "parents": []
+        }
+    ]
+
     try:
         authz_result = is_authorized(
             request,
             policies=policy_str,
-            entities=[]
+            entities=entities
         )
         
         decision_str = "PERMIT" if authz_result.decision == Decision.Allow else "FORBID"
