@@ -77,25 +77,52 @@ export default function App() {
   const [stressLoading, setStressLoading] = useState(false);
   const [customScanFile, setCustomScanFile] = useState(null);
 
-  // Fetch registered models & datasets (audits remain un-run until triggered)
+  // Fetch registered models & datasets with retry mechanism
   useEffect(() => {
-    fetch('/api/models')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && data.models && data.models.length > 0) {
-          setModels(data.models);
-        }
-      })
-      .catch((err) => console.warn('Models endpoint not reachable yet:', err.message));
+    let modelsLoaded = false;
+    let datasetsLoaded = false;
+    let retryCount = 0;
+    const maxRetries = 10;
+    let timeoutId = null;
 
-    fetch('/api/datasets')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && data.datasets && data.datasets.length > 0) {
-          setDatasets(data.datasets);
+    const fetchData = async () => {
+      try {
+        if (!modelsLoaded) {
+          const res = await fetch('/api/models');
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.models && data.models.length > 0) {
+              setModels(data.models);
+              modelsLoaded = true;
+            }
+          }
         }
-      })
-      .catch((err) => console.warn('Datasets endpoint not reachable yet:', err.message));
+        
+        if (!datasetsLoaded) {
+          const res = await fetch('/api/datasets');
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.datasets && data.datasets.length > 0) {
+              setDatasets(data.datasets);
+              datasetsLoaded = true;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Endpoints not reachable yet, retrying...', err.message);
+      }
+
+      if ((!modelsLoaded || !datasetsLoaded) && retryCount < maxRetries) {
+        retryCount++;
+        timeoutId = setTimeout(fetchData, 2000); // Retry every 2 seconds
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   const isCXR = (mId) => mId === 'cxr_chexnet' || mId === 'cxr_mobilenet_edge';
